@@ -1,3 +1,98 @@
+# ECPackage
+
+## 前提条件
+
+PHP・Composer・Node.js はコンテナの中で動くので、PC に入れる必要はありません。
+
+### 必須
+
+1. **WSL2 と Ubuntu**
+   - 以下の手順は全部 WSL の Ubuntu のターミナルで実行します。PowerShell やコマンドプロンプトではありません。
+2. **Docker**
+   - WSL2 から使える Docker が必要です。
+   - Docker Desktop を使う場合は、Settings → Resources → WSL Integration で Ubuntu を有効にしてください。
+   - `docker ps` と `docker compose version` がエラーなく通れば OK です。
+3. **Git**
+   - Ubuntu 側に git が入っていること。
+4. **リポジトリへのアクセス権**
+   - `crafdea-takeuchi/ECPackage` を閲覧できる GitHub アカウントが必要です。
+   - Private リポジトリの場合、HTTPS で Clone するときに Personal Access Token などの認証が要ります。
+5. **使用ポートが空いていること**
+   - 80、3306、5173、6379、1025、8025 を使います。
+   - 被る場合は `.env` のポート設定を変えてください。`docker ps` で使用中のポートを確認できます。
+
+### 推奨・注意
+
+- **Clone は WSL のファイルシステム（例：`~/code`）に置く**
+  - `/mnt/c/...`（Windows 側のフォルダ）に置くと、動作がかなり遅くなります。
+- **WSL のユーザー ID が 1000 であること**
+  - `id -u` で確認してください。1000 以外なら、`.env` の `WWWUSER` / `WWWGROUP` をその値に変えます。
+- **初回はネットワークとディスク容量が要る**
+  - イメージのビルドと取得で、数 GB のダウンロードと数分の待ち時間がかかります。
+
+## 構築手順
+
+```bash
+# 1. Clone
+cd ~/code
+git clone https://github.com/crafdea-takeuchi/ECPackage.git ECPackage
+cd ECPackage
+
+# 2. .env 作成（DBパスワードを設定）
+cp .env.example .env
+sed -i 's/^DB_PASSWORD=$/DB_PASSWORD=password/' .env
+#  ※他プロジェクトとポートが被る場合は .env の以下を変更
+#    APP_PORT=80 / FORWARD_DB_PORT=3306 / VITE_PORT=5173 など
+#    （例：他プロジェクトと同時に起動するなら FORWARD_DB_PORT=3307、VITE_PORT=5174）
+
+# 3. Composer依存をインストール（vendor/bin/sail を用意するため Docker 経由）
+docker run --rm -u "$(id -u):$(id -g)" -v "$(pwd):/var/www/html" -w /var/www/html \
+  laravelsail/php84-composer:latest composer install --ignore-platform-reqs
+
+# 4. コンテナ起動（初回はイメージのビルドで数分かかります）
+./vendor/bin/sail up -d
+
+# 5. アプリキー生成・DB構築・初期データ投入
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed
+
+# 6. フロントエンド
+./vendor/bin/sail npm install
+./vendor/bin/sail npm run build      # 開発中は ./vendor/bin/sail npm run dev
+```
+
+## 動作確認
+
+| 用途                      | URL                   |
+| ------------------------- | --------------------- |
+| アプリ                    | http://localhost      |
+| Mailpit（送信メール確認） | http://localhost:8025 |
+
+### ログインユーザー（Seeder で作成）
+
+| 種別   | メールアドレス        | パスワード     |
+| ------ | --------------------- | -------------- |
+| 管理者 | `admin@crafdea.co.jp` | `testtest1234` |
+| 一般   | `test@example.com`    | `password`     |
+
+> [!NOTE]
+> `db:seed` のときに画面に出る「Initial password」は、実際のパスワードと違います。上の `testtest1234` を使ってください。
+
+## よく使うコマンド
+
+```bash
+./vendor/bin/sail up -d                          # 起動
+./vendor/bin/sail stop                           # 停止
+./vendor/bin/sail artisan migrate:fresh --seed   # DBを作り直す（データは消えます）
+```
+
+## ドキュメント
+
+- [基本設計書](docs/基本設計書.md)
+- [DB設計書](docs/DB設計書.md)
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

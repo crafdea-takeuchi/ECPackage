@@ -1,12 +1,14 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import ProductImageEditor from '../../../Components/ProductImageEditor.vue';
 import CategoryPicker from '../../../Components/CategoryPicker.vue';
 import AdminLayout from '../../../Layouts/AdminLayout.vue';
 const props = defineProps({ product: Object, units: Array, categories: Array, groups: Array, componentProducts: Array });
 const confirmed = computed(() => props.product?.registration_status === 'confirmed');
 const initialValues = Object.fromEntries((props.product?.attribute_values ?? []).map(value => [value.product_attribute_definition_id, value.value]));
-const form = useForm({ kind: props.product?.kind ?? 'single', name: props.product?.name ?? '', sku: props.product?.sku ?? '', product_group_id: props.product?.product_group_id ?? '', unit_id: props.product?.unit_id ?? props.units.find(unit => unit.code === 'piece')?.id ?? props.units[0]?.id ?? '', default_sale_price: props.product?.default_sale_price ?? '', registration_status: props.product?.registration_status ?? 'provisional', publication_status: props.product?.publication_status ?? 'private', shortage_policy: props.product?.shortage_policy ?? 'reject', lock_version: props.product?.lock_version ?? 0, category_ids: props.product?.categories?.map(category => category.id) ?? [], attribute_values: initialValues, bundle_components: props.product?.bundle_components?.map(component => ({ component_product_id: component.component_product_id, quantity: component.quantity })) ?? [] });
+const imageRows = () => (props.product?.images ?? []).map(image => ({ ...image, file: null }));
+const form = useForm({ images: imageRows(), images_present: true, kind: props.product?.kind ?? 'single', name: props.product?.name ?? '', sku: props.product?.sku ?? '', product_group_id: props.product?.product_group_id ?? '', unit_id: props.product?.unit_id ?? props.units.find(unit => unit.code === 'piece')?.id ?? props.units[0]?.id ?? '', default_sale_price: props.product?.default_sale_price ?? '', registration_status: props.product?.registration_status ?? 'provisional', publication_status: props.product?.publication_status ?? 'private', shortage_policy: props.product?.shortage_policy ?? 'reject', lock_version: props.product?.lock_version ?? 0, category_ids: props.product?.categories?.map(category => category.id) ?? [], attribute_values: initialValues, bundle_components: props.product?.bundle_components?.map(component => ({ component_product_id: component.component_product_id, quantity: component.quantity })) ?? [] });
 const selectedGroup = computed(() => props.groups.find(group => group.id === Number(form.product_group_id)));
 const activeDefinitions = computed(() => selectedGroup.value?.definitions ?? []);
 const archivedValues = computed(() => (props.product?.attribute_values ?? []).filter(value => value.definition?.status === 'inactive'));
@@ -27,8 +29,18 @@ function changeKind() {
 function save(status) {
   form.registration_status = status;
   if (status === 'provisional') form.publication_status = 'private';
-  const options = { preserveScroll: true, onSuccess: () => { form.lock_version = props.product.lock_version; form.sku = props.product.sku; form.defaults(); } };
-  if (props.product) form.put(`/admin/products/${props.product.id}`, options); else form.post('/admin/products', options);
+  form.transform(data => ({
+    ...data,
+    ...(props.product ? { _method: 'put' } : {}),
+    images: data.images.map(row => ({ id: row.id ?? null, file: row.file, alt_text: row.alt_text || '' })),
+  }));
+  const options = { preserveScroll: true, onSuccess: () => {
+    form.lock_version = props.product.lock_version;
+    form.sku = props.product.sku;
+    form.images = imageRows();
+    form.defaults();
+  } };
+  form.post(props.product ? '/admin/products/' + props.product.id : '/admin/products', options);
 }
 </script>
 <template>
@@ -51,6 +63,8 @@ function save(status) {
           <div class="grid gap-6 sm:grid-cols-2"><div><label for="unit" class="mb-2 block text-sm font-medium">数量の単位 <span class="ml-2 text-xs text-red-600">必須</span></label><select id="unit" v-model="form.unit_id" :disabled="confirmed" class="field disabled:bg-slate-100"><option value="" disabled>選択してください</option><option v-for="unit in units" :key="unit.id" :value="unit.id">{{ unit.name }}</option></select><p class="mt-2 text-xs text-slate-500">本登録後は変更できません。</p></div><div><label for="price" class="mb-2 block text-sm font-medium">標準販売単価 <span class="ml-2 text-xs text-slate-500">本登録時必須</span></label><input id="price" v-model="form.default_sale_price" type="text" inputmode="decimal" class="field" placeholder="例：1200" /><p class="mt-2 text-xs text-slate-500">税抜の基準単価。小数4桁まで入力できます。</p></div></div>
         </div>
         <div class="mt-8"><CategoryPicker v-model="form.category_ids" :categories="categories" :retained-ids="product?.categories?.map(category => category.id) ?? []" /></div>
+        <ProductImageEditor v-model="form.images" :disabled="form.processing" @reset="form.images = imageRows()" />
+        <p v-if="form.progress" class="mt-3 text-sm" role="status">アップロード中 {{ form.progress.percentage }}%</p>
       </section>
       <aside class="space-y-5"><section class="rounded-xl border border-slate-200 bg-white p-6"><h2 class="font-semibold">登録・公開設定</h2><p class="mt-4 text-sm">現在の状態：<strong>{{ product ? (confirmed ? '本登録' : '仮登録') : '未保存' }}</strong></p><label for="visibility" class="mt-6 mb-2 block text-sm font-medium">公開状態（本登録時）</label><select id="visibility" v-model="form.publication_status" class="field"><option value="private">非公開</option><option value="public">公開</option></select><p class="mt-3 text-xs leading-6 text-slate-500">本登録しても自動で公開にはなりません。</p><label for="shortage-policy" class="mt-6 mb-2 block text-sm font-medium">在庫不足時の扱い</label><select id="shortage-policy" v-model="form.shortage_policy" class="field"><option value="reject">在庫数を超える注文は受け付けない</option><option value="backorder">不足分を取り寄せとして受け付ける</option></select><p class="mt-3 text-xs leading-6 text-slate-500">取り寄せ分は在庫をマイナスにせず、注文明細へ不足数を記録します。</p></section><section class="rounded-xl border border-emerald-100 bg-emerald-50 p-5 text-sm leading-7 text-emerald-900"><p class="font-semibold">登録前の確認</p><p>仮登録は販売商品名だけで保存できます。本登録では単位・標準販売単価・必須属性を確認してください。</p></section><button type="button" @click="save('confirmed')" :disabled="form.processing || !units.length" class="btn-primary w-full">{{ form.processing ? '保存中…' : confirmed ? '変更を保存' : '本登録する' }}</button><button v-if="!confirmed" type="submit" :disabled="form.processing || !units.length" class="w-full rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold disabled:opacity-50">仮登録する</button></aside>
     </form>

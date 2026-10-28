@@ -18,6 +18,13 @@ class ProductRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->boolean('images_present')) {
+            $this->merge([
+                'images' => $this->input('images', []),
+                'category_ids' => $this->input('category_ids', []),
+                'attribute_values' => $this->input('attribute_values', []),
+            ]);
+        }
         $components = collect($this->input('bundle_components', []))->map(function ($component): mixed {
             if (! is_array($component)) {
                 return $component;
@@ -39,6 +46,12 @@ class ProductRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'images_present' => ['sometimes', 'boolean'],
+            'images' => ['sometimes', 'array', 'list', 'max:5'],
+            'images.*' => ['array:id,file,alt_text'],
+            'images.*.id' => ['nullable', 'integer', Rule::exists('product_images', 'id')->where('product_id', $this->route('product')?->id ?? 0)],
+            'images.*.file' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=6000,max_height=6000'],
+            'images.*.alt_text' => ['nullable', 'string', 'max:200'],
             'product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')],
             'attribute_values' => ['sometimes', 'array', 'max:20'],
             'attribute_values.*' => ['nullable', 'string', 'max:255'],
@@ -156,6 +169,13 @@ class ProductRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'images.max' => '商品画像は5枚以内で登録してください。',
+            'images.*.id.exists' => 'この商品の画像を選び直してください。',
+            'images.*.file.image' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.mimes' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.max' => '画像は1枚5MB以内にしてください。',
+            'images.*.file.dimensions' => '画像の縦横は6000px以内にしてください。',
+            'images.*.alt_text.max' => '画像の説明は200文字以内で入力してください。',
             'kind.in' => '販売商品の種類を選び直してください。',
             'bundle_components.present' => 'セット内容を送信してください。',
             'bundle_components.array' => 'セット内容を入力し直してください。',

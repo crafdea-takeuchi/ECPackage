@@ -21,6 +21,11 @@ class Product extends Model
         return ['default_sale_price' => 'decimal:4', 'attributes' => 'array', 'confirmed_at' => 'datetime', 'lock_version' => 'integer'];
     }
 
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order')->orderBy('id');
+    }
+
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);

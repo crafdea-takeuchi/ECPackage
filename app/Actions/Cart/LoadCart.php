@@ -11,7 +11,7 @@ class LoadCart
     public function handle(array $cart): array
     {
         $products = Product::whereIn('id', array_keys($cart))
-            ->with(['unit:id,name,code,quantity_scale', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots'])
+            ->with(['images', 'unit:id,name,code,quantity_scale', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots'])
             ->withSum(['inventoryLots as available_quantity' => fn ($query) => $query->where('current_quantity', '>', 0)], 'current_quantity')
             ->get()->keyBy('id');
         $total = '0';

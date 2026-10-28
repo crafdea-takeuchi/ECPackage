@@ -6,6 +6,7 @@ use App\Actions\Cart\LoadCart;
 use App\Actions\Orders\PlaceCustomerOrder;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CheckoutRequest;
+use App\Models\Order;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,12 +22,12 @@ class CheckoutController extends Controller
             return to_route('cart.index')->with('status', 'カートに商品を追加してください。');
         }
 
-        return Inertia::render('Checkout/Create', $cart);
+        return Inertia::render('Checkout/Create', [...$cart, 'prefectures' => Order::PREFECTURES, 'customerName' => $request->user()->name]);
     }
 
     public function store(CheckoutRequest $request, PlaceCustomerOrder $placeCustomerOrder): RedirectResponse
     {
-        $order = $placeCustomerOrder->handle($request->user(), $request->session()->get('cart', []), $request->validated('notes'));
+        $order = $placeCustomerOrder->handle($request->user(), $request->session()->get('cart', []), $request->validated('notes'), $request->shippingAddress());
         $request->session()->forget('cart');
 
         return to_route('orders.show', $order)->with('status', 'ご注文を受け付けました。');

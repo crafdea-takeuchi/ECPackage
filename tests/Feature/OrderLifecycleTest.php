@@ -40,6 +40,11 @@ class OrderLifecycleTest extends TestCase
         return ['customer_id' => $context['customer']->id, 'ordered_on' => '2026-10-21', 'action' => 'confirm', 'lock_version' => 0, 'lines' => [['product_id' => $context['product']->id, 'quantity' => $quantity, 'unit_sale_price' => 100]]];
     }
 
+    private function checkoutInput(?string $notes): array
+    {
+        return ['notes' => $notes, 'shipping_name' => '配送 太郎', 'shipping_postal_code' => '100-0001', 'shipping_prefecture' => '東京都', 'shipping_address_line1' => '千代田区千代田1-1'];
+    }
+
     public function test_backorder_policy_confirms_available_quantity_and_records_shortage(): void
     {
         $context = $this->context('2', 'backorder');
@@ -88,7 +93,7 @@ class OrderLifecycleTest extends TestCase
         $context = $this->context('2', 'backorder');
 
         $this->actingAs($context['customer'])->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '5'])->assertSessionHasNoErrors();
-        $this->post('/checkout', ['notes' => '取り寄せ可'])->assertSessionHasNoErrors();
+        $this->post('/checkout', $this->checkoutInput('取り寄せ可'))->assertSessionHasNoErrors();
 
         $order = Order::with('lines')->firstOrFail();
         $this->assertSame('confirmed', $order->status);
@@ -102,7 +107,7 @@ class OrderLifecycleTest extends TestCase
         Notification::fake();
         $context = $this->context('2', 'backorder');
         $this->actingAs($context['customer'])->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '5'])->assertSessionHasNoErrors();
-        $this->post('/checkout', ['notes' => null])->assertSessionHasNoErrors();
+        $this->post('/checkout', $this->checkoutInput(null))->assertSessionHasNoErrors();
         $order = Order::firstOrFail();
 
         $input = [

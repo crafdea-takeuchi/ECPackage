@@ -29,7 +29,7 @@ class DatabaseSeeder extends Seeder
             $password = Str::password(24);
             $admin->forceFill([
                 'name' => 'Admin',
-                'password' => "testtest1234",
+                'password' => 'testtest1234',
                 'email_verified_at' => now(),
             ]);
         }
@@ -41,6 +41,8 @@ class DatabaseSeeder extends Seeder
             $this->command?->warn('Initial password: '.$password);
         }
 
-        $this->call(DemoCatalogSeeder::class);
+        $this->call(ProductCatalogSeeder::class);
+
+        // Demo data is opt-in: php artisan db:seed --class=DemoCatalogSeeder
     }
 }

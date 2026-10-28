@@ -28,7 +28,16 @@ return [
     |
     */
 
+    'product_image_disk' => env('PRODUCT_IMAGE_DISK', 'product_images'),
+
     'disks' => [
+        'product_images' => [
+            'driver' => 'local',
+            'root' => storage_path('app/product-images'),
+            'visibility' => 'private',
+            'throw' => true,
+            'serve' => false,
+        ],
 
         'local' => [
             'driver' => 'local',

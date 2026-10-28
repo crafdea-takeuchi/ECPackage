@@ -31,7 +31,7 @@ class ShopController extends Controller
             })->pluck('id');
             $query->whereIn('id', $matching);
         }
-        $products = $query->with(['unit:id,name,code,quantity_scale', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])->orderBy('name')->paginate(12)->withQueryString();
+        $products = $query->with(['images', 'unit:id,name,code,quantity_scale', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])->orderBy('name')->paginate(12)->withQueryString();
         $products->getCollection()->each(fn (Product $product) => $product->setAttribute('available_quantity', $product->availableQuantity()));
 
         return Inertia::render('Shop/Index', ['products' => $products, 'filters' => $filters, 'categories' => Category::where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(['id', 'name'])]);

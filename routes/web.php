@@ -16,6 +16,7 @@ use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\RegistrationController;
 use App\Http\Controllers\Auth\SessionController;
 use App\Http\Controllers\Auth\VerificationController;
+use App\Http\Controllers\ProductImageController;
 use App\Http\Controllers\Shop\CartController;
 use App\Http\Controllers\Shop\CheckoutController;
 use App\Http\Controllers\Shop\CustomerOrderController;
@@ -24,6 +25,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
+Route::get('/product-images/{productImage}/{variant}', [ProductImageController::class, 'show'])
+    ->where('variant', 'full|thumbnail')->name('product-images.show');
 Route::inertia('/', 'Home')->name('home');
 Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');

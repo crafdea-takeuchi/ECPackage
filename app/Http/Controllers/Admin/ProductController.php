@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Products\SyncProductImages;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
 use App\Models\Category;
@@ -34,7 +35,7 @@ class ProductController extends Controller
             'publication_status' => ['nullable', Rule::in(['private', 'public'])],
             'kind' => ['nullable', Rule::in(['single', 'bundle'])],
         ]);
-        $query = Product::query()->with(['unit:id,name', 'categories:id,name', 'group:id,name', 'attributeValues.definition:id,name']);
+        $query = Product::query()->with(['images', 'unit:id,name', 'categories:id,name', 'group:id,name', 'attributeValues.definition:id,name']);
         if ($filters['product_group_id'] ?? null) {
             $query->where('product_group_id', $filters['product_group_id']);
         }
@@ -82,13 +83,13 @@ class ProductController extends Controller
     {
         abort_unless(in_array($product->registration_status, ['provisional', 'confirmed'], true), 404);
 
-        return Inertia::render('Admin/Products/Form', ['componentProducts' => $this->componentProducts($product), 'product' => $product->load(['categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code'])]);
+        return Inertia::render('Admin/Products/Form', ['componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code'])]);
     }
 
-    public function store(ProductRequest $request): RedirectResponse
+    public function store(ProductRequest $request, SyncProductImages $images): RedirectResponse
     {
-        $product = DB::transaction(function () use ($request): Product {
-            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components']));
+        $product = $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $images): Product {
+            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present']));
             $product->sku = $product->sku ?: 'P-'.Str::ulid();
             $product->created_by = $request->user()->id;
             if ($product->registration_status === 'confirmed') {
@@ -99,16 +100,17 @@ class ProductController extends Controller
             $this->syncCategories($request, $product);
             $this->syncAttributeValues($request, $product, null);
             $this->syncBundleComponents($request, $product);
+            $images->sync($product, $request->validated('images'));
 
             return $product;
-        }, 3);
+        }, 3));
 
         return to_route('admin.products.edit', $product)->with('status', $product->registration_status === 'confirmed' ? '販売商品を本登録しました。' : '販売商品を仮登録しました。');
     }
 
-    public function update(ProductRequest $request, Product $product): RedirectResponse
+    public function update(ProductRequest $request, Product $product, SyncProductImages $images): RedirectResponse
     {
-        DB::transaction(function () use ($request, $product): void {
+        $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $product, $images): void {
             $current = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
             if ($current->lock_version !== (int) $request->validated('lock_version')) {
                 throw ValidationException::withMessages(['lock_version' => '別の画面で更新されています。再読み込みして内容を確認してください。']);
@@ -129,7 +131,7 @@ class ProductController extends Controller
             }
             $sku = $current->sku;
             $previousGroupId = $current->product_group_id;
-            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components']));
+            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present']));
             $current->sku = $current->sku ?: $sku;
             if ($current->registration_status === 'confirmed' && ! $current->confirmed_at) {
                 $current->confirmed_by = $request->user()->id;
@@ -140,7 +142,8 @@ class ProductController extends Controller
             $this->syncCategories($request, $current);
             $this->syncAttributeValues($request, $current, $previousGroupId);
             $this->syncBundleComponents($request, $current);
-        }, 3);
+            $images->sync($current, $request->validated('images'));
+        }, 3));
 
         return to_route('admin.products.edit', $product)->with('status', '販売商品を保存しました。');
     }

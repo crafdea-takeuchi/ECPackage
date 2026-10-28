@@ -20,7 +20,10 @@ defineProps({ admin: Boolean });
           </template>
           <template v-else>
             <Link href="/login" class="nav-link">ログイン</Link>
-            <Link href="/register" class="btn-primary">新規登録</Link>
+            <div class="flex flex-col items-center gap-1">
+              <span role="button" aria-disabled="true" class="btn-primary cursor-not-allowed opacity-50 hover:bg-emerald-800">新規登録</span>
+              <p class="text-xs font-semibold text-red-600">現在停止中です</p>
+            </div>
           </template>
         </nav>
       </div>
@@ -32,7 +35,6 @@ defineProps({ admin: Boolean });
     </main>
     <footer class="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-6 py-8 text-xs text-slate-500">
       <span>EC02 · あなたの毎日に、ちょうどいいものを。</span>
-      <Link v-if="!page.props.auth.user" href="/admin/login" class="nav-link">管理者ログイン</Link>
     </footer>
   </div>
 </template>

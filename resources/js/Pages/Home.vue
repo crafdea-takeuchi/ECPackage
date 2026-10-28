@@ -12,8 +12,8 @@ const page = usePage();
         <p class="mb-5 text-xs font-semibold tracking-[.25em] text-emerald-300">WELCOME TO EC02</p>
         <h1 class="text-3xl font-semibold leading-relaxed md:text-5xl md:leading-snug">毎日に、<br>新しい楽しみを。</h1>
         <p class="mt-6 max-w-md text-sm leading-8 text-emerald-100">{{ page.props.auth.user ? `${page.props.auth.user.name} さん、おかえりなさい。` : 'EC02へようこそ。アカウントを作成して、これから始まるお買い物に備えましょう。' }}</p>
-        <div class="mt-9 flex flex-wrap gap-3"><Link href="/shop" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-50">商品を見る →</Link>
-          <template v-if="!page.props.auth.user"><Link href="/register" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-50">新規登録する →</Link><Link href="/login" class="rounded-lg border border-white/40 px-6 py-3 text-sm hover:bg-white/10">ログイン</Link></template>
+        <div class="mt-9 flex flex-wrap items-start gap-3"><Link href="/shop" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-50">商品を見る →</Link>
+          <template v-if="!page.props.auth.user"><div class="flex flex-col items-start gap-1"><span role="button" aria-disabled="true" class="cursor-not-allowed rounded-lg bg-white/40 px-6 py-3 text-sm font-semibold text-emerald-950/60">新規登録する →</span><p class="text-xs font-semibold text-red-400">現在停止中です</p></div><Link href="/login" class="rounded-lg border border-white/40 px-6 py-3 text-sm hover:bg-white/10">ログイン</Link></template>
           <Link v-else-if="page.props.auth.user.role === 'admin'" href="/admin" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950">管理画面へ →</Link>
           <span v-else class="rounded-full bg-white/10 px-4 py-2 text-sm">ログイン中</span>
         </div>

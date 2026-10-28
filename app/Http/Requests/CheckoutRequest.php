@@ -25,6 +25,7 @@ class CheckoutRequest extends FormRequest
             'shipping_prefecture' => $text('shipping_prefecture'),
             'shipping_address_line1' => $text('shipping_address_line1'),
             'shipping_address_line2' => $text('shipping_address_line2'),
+            'payment_method' => $text('payment_method'),
         ]);
     }
 
@@ -37,6 +38,7 @@ class CheckoutRequest extends FormRequest
             'shipping_prefecture' => ['required', 'string', Rule::in(Order::PREFECTURES)],
             'shipping_address_line1' => ['required', 'string', 'max:200'],
             'shipping_address_line2' => ['nullable', 'string', 'max:200'],
+            'payment_method' => ['required', 'string', Rule::in(array_keys(Order::PAYMENT_METHODS))],
         ];
     }
 
@@ -53,6 +55,8 @@ class CheckoutRequest extends FormRequest
             'shipping_address_line1.required' => '市区町村・番地を入力してください。',
             'shipping_address_line1.max' => '市区町村・番地は200文字以内で入力してください。',
             'shipping_address_line2.max' => '建物名・部屋番号は200文字以内で入力してください。',
+            'payment_method.required' => '決済方法を選択してください。',
+            'payment_method.in' => '決済方法を選択し直してください。',
         ];
     }
 

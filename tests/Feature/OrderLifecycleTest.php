@@ -42,7 +42,7 @@ class OrderLifecycleTest extends TestCase
 
     private function checkoutInput(?string $notes): array
     {
-        return ['notes' => $notes, 'shipping_name' => '配送 太郎', 'shipping_postal_code' => '100-0001', 'shipping_prefecture' => '東京都', 'shipping_address_line1' => '千代田区千代田1-1'];
+        return ['notes' => $notes, 'shipping_name' => '配送 太郎', 'shipping_postal_code' => '100-0001', 'shipping_prefecture' => '東京都', 'shipping_address_line1' => '千代田区千代田1-1', 'payment_method' => 'bank_transfer'];
     }
 
     public function test_backorder_policy_confirms_available_quantity_and_records_shortage(): void

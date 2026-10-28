@@ -18,13 +18,13 @@ class PlaceCustomerOrder
      * @param  array<int|string, string|int|float>  $cart
      * @param  array{shipping_name: string, shipping_postal_code: string, shipping_prefecture: string, shipping_address_line1: string, shipping_address_line2: ?string}  $shippingAddress
      */
-    public function handle(User $customer, array $cart, ?string $notes, array $shippingAddress): Order
+    public function handle(User $customer, array $cart, ?string $notes, array $shippingAddress, string $paymentMethod): Order
     {
         if ($cart === []) {
             throw ValidationException::withMessages(['cart' => 'カートに商品がありません。']);
         }
 
-        return DB::transaction(function () use ($customer, $cart, $notes, $shippingAddress): Order {
+        return DB::transaction(function () use ($customer, $cart, $notes, $shippingAddress, $paymentMethod): Order {
             $products = Product::whereIn('id', array_keys($cart))
                 ->where('registration_status', 'confirmed')
                 ->where('publication_status', 'public')
@@ -35,7 +35,7 @@ class PlaceCustomerOrder
                 throw ValidationException::withMessages(['cart' => '購入できない商品が含まれています。カートを確認してください。']);
             }
 
-            $order = new Order(['customer_id' => $customer->id, 'ordered_on' => today()->format('Y-m-d'), 'notes' => $notes, ...$shippingAddress]);
+            $order = new Order(['customer_id' => $customer->id, 'ordered_on' => today()->format('Y-m-d'), 'notes' => $notes, ...$shippingAddress, 'payment_method' => $paymentMethod]);
             $order->order_number = 'O-'.Str::ulid();
             $order->order_source = 'customer';
             $order->status = 'draft';

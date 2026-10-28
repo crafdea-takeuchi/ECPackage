@@ -26,10 +26,14 @@ class Order extends Model
         '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県',
     ];
 
+    public const PAYMENT_METHODS = [
+        'bank_transfer' => '銀行振込',
+    ];
+
     protected $fillable = [
         'customer_id', 'ordered_on', 'notes',
         'shipping_name', 'shipping_postal_code', 'shipping_prefecture',
-        'shipping_address_line1', 'shipping_address_line2',
+        'shipping_address_line1', 'shipping_address_line2', 'payment_method',
     ];
 
     protected function casts(): array

@@ -2,8 +2,8 @@
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
-const props = defineProps({ items: Array, total: String, prefectures: Array, customerName: String });
-const form = useForm({ shipping_name: props.customerName ?? '', shipping_postal_code: '', shipping_prefecture: '', shipping_address_line1: '', shipping_address_line2: '', notes: '' });
+const props = defineProps({ items: Array, total: String, prefectures: Array, paymentMethods: Object, customerName: String });
+const form = useForm({ shipping_name: props.customerName ?? '', shipping_postal_code: '', shipping_prefecture: '', shipping_address_line1: '', shipping_address_line2: '', payment_method: Object.keys(props.paymentMethods ?? {})[0] ?? '', notes: '' });
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
 function submit() { form.post('/checkout', { preserveScroll: true }); }
 </script>
@@ -21,6 +21,7 @@ function submit() { form.post('/checkout', { preserveScroll: true }); }
         <div><label for="shipping-prefecture" class="mb-2 block text-sm font-medium">都道府県 <span class="text-red-600">*</span></label><select id="shipping-prefecture" v-model="form.shipping_prefecture" class="field" autocomplete="shipping address-level1" required :aria-invalid="!!form.errors.shipping_prefecture"><option value="" disabled>選択してください</option><option v-for="prefecture in prefectures" :key="prefecture" :value="prefecture">{{ prefecture }}</option></select></div>
         <div class="sm:col-span-2"><label for="shipping-address-line1" class="mb-2 block text-sm font-medium">市区町村・番地 <span class="text-red-600">*</span></label><input id="shipping-address-line1" v-model="form.shipping_address_line1" type="text" class="field" maxlength="200" placeholder="千代田区千代田1-1" autocomplete="shipping address-line1" required :aria-invalid="!!form.errors.shipping_address_line1"></div>
         <div class="sm:col-span-2"><label for="shipping-address-line2" class="mb-2 block text-sm font-medium">建物名・部屋番号</label><input id="shipping-address-line2" v-model="form.shipping_address_line2" type="text" class="field" maxlength="200" autocomplete="shipping address-line2" :aria-invalid="!!form.errors.shipping_address_line2"></div>      </div></section>
+      <section class="rounded-xl border border-slate-200 bg-white p-6"><h2 class="text-lg font-bold">決済方法</h2><div class="mt-5 sm:w-1/2"><label for="payment-method" class="mb-2 block text-sm font-medium">お支払い方法 <span class="text-red-600">*</span></label><select id="payment-method" v-model="form.payment_method" class="field" required :aria-invalid="!!form.errors.payment_method"><option v-for="(label, value) in paymentMethods" :key="value" :value="value">{{ label }}</option></select></div></section>
       <section class="rounded-xl border border-slate-200 bg-white p-6"><label for="checkout-notes" class="mb-2 block text-sm font-medium">ご要望・備考</label><textarea id="checkout-notes" v-model="form.notes" class="field min-h-24" maxlength="2000"></textarea></section><div class="flex justify-end"><button type="submit" class="btn-primary min-w-52" :disabled="form.processing">{{ form.processing ? '注文中…' : '注文を確定する' }}</button></div></form>
   </AppLayout>
 </template>

@@ -22,12 +22,12 @@ class CheckoutController extends Controller
             return to_route('cart.index')->with('status', 'カートに商品を追加してください。');
         }
 
-        return Inertia::render('Checkout/Create', [...$cart, 'prefectures' => Order::PREFECTURES, 'customerName' => $request->user()->name]);
+        return Inertia::render('Checkout/Create', [...$cart, 'prefectures' => Order::PREFECTURES, 'paymentMethods' => Order::PAYMENT_METHODS, 'customerName' => $request->user()->name]);
     }
 
     public function store(CheckoutRequest $request, PlaceCustomerOrder $placeCustomerOrder): RedirectResponse
     {
-        $order = $placeCustomerOrder->handle($request->user(), $request->session()->get('cart', []), $request->validated('notes'), $request->shippingAddress());
+        $order = $placeCustomerOrder->handle($request->user(), $request->session()->get('cart', []), $request->validated('notes'), $request->shippingAddress(), $request->validated('payment_method'));
         $request->session()->forget('cart');
 
         return to_route('orders.show', $order)->with('status', 'ご注文を受け付けました。');

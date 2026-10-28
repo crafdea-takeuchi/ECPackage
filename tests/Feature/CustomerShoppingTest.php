@@ -66,6 +66,7 @@ class CustomerShoppingTest extends TestCase
             'shipping_prefecture' => '東京都',
             'shipping_address_line1' => '千代田区千代田1-1',
             'shipping_address_line2' => 'テストビル101',
+            'payment_method' => 'bank_transfer',
         ], $overrides);
     }
 
@@ -153,6 +154,7 @@ class CustomerShoppingTest extends TestCase
         $this->assertSame('東京都', $order->shipping_prefecture);
         $this->assertSame('千代田区千代田1-1', $order->shipping_address_line1);
         $this->assertSame('テストビル101', $order->shipping_address_line2);
+        $this->assertSame('bank_transfer', $order->payment_method);
         $this->get('/orders/'.$order->id)->assertInertia(fn (Assert $page) => $page
             ->component('Orders/Show')
             ->where('order.shipping_name', '配送 太郎')
@@ -197,6 +199,7 @@ class CustomerShoppingTest extends TestCase
                 ->component('Checkout/Create')
                 ->has('prefectures', 47)
                 ->where('prefectures.12', '東京都')
+                ->where('paymentMethods', ['bank_transfer' => '銀行振込'])
                 ->where('customerName', '購入者'));
     }
 
@@ -218,7 +221,9 @@ class CustomerShoppingTest extends TestCase
     #[TestWith(['shipping_postal_code', '100-00011', '郵便番号は「123-4567」の形式で入力してください。'])]
     #[TestWith(['shipping_prefecture', '東京', '都道府県を選択し直してください。'])]
     #[TestWith(['shipping_address_line1', '', '市区町村・番地を入力してください。'])]
-    public function test_checkout_rejects_invalid_shipping_address(string $field, string $value, string $message): void
+    #[TestWith(['payment_method', '', '決済方法を選択してください。'])]
+    #[TestWith(['payment_method', 'credit_card', '決済方法を選択し直してください。'])]
+    public function test_checkout_rejects_invalid_shipping_address_and_payment_method(string $field, string $value, string $message): void
     {
         $context = $this->sellableProduct();
         $cart = [$context['product']->id => '1'];

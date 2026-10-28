@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductAttributeDefinition;
 use App\Models\ProductGroup;
+use App\Models\TaxRate;
 use App\Models\Unit;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\RedirectResponse;
@@ -76,14 +77,14 @@ class ProductController extends Controller
 
     public function create(): Response
     {
-        return Inertia::render('Admin/Products/Form', ['product' => null, 'componentProducts' => $this->componentProducts(), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code'])]);
+        return Inertia::render('Admin/Products/Form', ['product' => null, 'componentProducts' => $this->componentProducts(), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates()]);
     }
 
     public function edit(Product $product): Response
     {
         abort_unless(in_array($product->registration_status, ['provisional', 'confirmed'], true), 404);
 
-        return Inertia::render('Admin/Products/Form', ['componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code'])]);
+        return Inertia::render('Admin/Products/Form', ['componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates($product)]);
     }
 
     public function store(ProductRequest $request, SyncProductImages $images): RedirectResponse
@@ -170,6 +171,13 @@ class ProductController extends Controller
                 'sort_order' => $index + 1,
             ]);
         }
+    }
+
+    private function taxRates(?Product $product = null): mixed
+    {
+        return TaxRate::where('status', 'active')
+            ->when($product?->tax_rate_id, fn ($query, $id) => $query->orWhere('id', $id))
+            ->orderBy('rate')->get(['id', 'code', 'name', 'rate']);
     }
 
     private function groups(): mixed

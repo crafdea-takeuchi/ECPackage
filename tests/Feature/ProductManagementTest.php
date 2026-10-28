@@ -3,8 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\Product;
+use App\Models\TaxRate;
 use App\Models\Unit;
 use App\Models\User;
+use Database\Seeders\TaxRateSeeder;
 use Database\Seeders\UnitSeeder;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -100,6 +102,58 @@ class ProductManagementTest extends TestCase
     {
         $this->actingAs(User::factory()->admin()->create())->post('/admin/products', $this->input([$field => $value]))->assertSessionHasErrors([$field => $message]);
         $this->assertDatabaseCount('products', 0);
+    }
+
+    public function test_product_form_provides_active_tax_rates_including_current_inactive_rate(): void
+    {
+        $this->seed(TaxRateSeeder::class);
+        $inactive = TaxRate::factory()->create(['code' => 'old', 'name' => '旧税率', 'rate' => '5.00', 'status' => 'inactive']);
+        $product = Product::factory()->create(['tax_rate_id' => $inactive->id]);
+        $this->actingAs(User::factory()->admin()->create());
+
+        $this->get('/admin/products/create')->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Products/Form')
+            ->has('taxRates', 2)
+            ->where('taxRates.0.code', 'reduced')
+            ->where('taxRates.0.rate', '8.00')
+            ->where('taxRates.1.code', 'standard'));
+        $this->get('/admin/products/'.$product->id.'/edit')->assertInertia(fn (Assert $page) => $page
+            ->has('taxRates', 3)
+            ->where('taxRates.0.code', 'old')
+            ->where('product.tax_rate_id', $inactive->id));
+    }
+
+    public function test_admin_can_set_change_and_clear_product_tax_rate(): void
+    {
+        $this->seed(TaxRateSeeder::class);
+        $reduced = TaxRate::where('code', 'reduced')->firstOrFail();
+        $standard = TaxRate::where('code', 'standard')->firstOrFail();
+        $this->actingAs(User::factory()->admin()->create());
+
+        $this->post('/admin/products', $this->input(['tax_rate_id' => $reduced->id]))->assertSessionHasNoErrors();
+        $product = Product::firstOrFail();
+        $this->assertSame($reduced->id, $product->tax_rate_id);
+        $this->assertSame('8.00', $product->taxRate->rate);
+
+        $this->put('/admin/products/'.$product->id, $this->input(['unit_id' => $product->unit_id, 'tax_rate_id' => $standard->id, 'lock_version' => 0]))->assertSessionHasNoErrors();
+        $this->assertSame($standard->id, $product->fresh()->tax_rate_id);
+
+        $this->put('/admin/products/'.$product->id, $this->input(['unit_id' => $product->unit_id, 'tax_rate_id' => '', 'lock_version' => 1]))->assertSessionHasNoErrors();
+        $this->assertNull($product->fresh()->tax_rate_id);
+    }
+
+    public function test_inactive_tax_rate_cannot_be_newly_set_but_current_one_can_be_kept(): void
+    {
+        $inactive = TaxRate::factory()->create(['status' => 'inactive']);
+        $product = Product::factory()->create(['tax_rate_id' => $inactive->id]);
+        $this->actingAs(User::factory()->admin()->create());
+
+        $this->post('/admin/products', $this->input(['tax_rate_id' => $inactive->id]))->assertSessionHasErrors(['tax_rate_id' => '有効な税率区分を選択してください。']);
+        $this->post('/admin/products', $this->input(['tax_rate_id' => 999999]))->assertSessionHasErrors(['tax_rate_id' => '有効な税率区分を選択してください。']);
+        $this->assertDatabaseCount('products', 1);
+
+        $this->put('/admin/products/'.$product->id, $this->input(['unit_id' => $product->unit_id, 'tax_rate_id' => $inactive->id, 'lock_version' => 0]))->assertSessionHasNoErrors();
+        $this->assertSame($inactive->id, $product->fresh()->tax_rate_id);
     }
 
     public function test_confirmation_requires_price_and_active_unit(): void

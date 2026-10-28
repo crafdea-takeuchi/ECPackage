@@ -14,7 +14,7 @@ class Product extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['sku', 'name', 'kind', 'product_group_id', 'unit_id', 'registration_status', 'publication_status', 'shortage_policy', 'default_sale_price'];
+    protected $fillable = ['sku', 'name', 'kind', 'product_group_id', 'unit_id', 'registration_status', 'publication_status', 'shortage_policy', 'default_sale_price', 'tax_rate_id'];
 
     protected function casts(): array
     {
@@ -29,6 +29,11 @@ class Product extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(Unit::class);
+    }
+
+    public function taxRate(): BelongsTo
+    {
+        return $this->belongsTo(TaxRate::class);
     }
 
     public function categories(): BelongsToMany

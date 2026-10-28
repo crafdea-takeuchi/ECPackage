@@ -68,6 +68,7 @@ class ProductRequest extends FormRequest
             'publication_status' => ['required', Rule::in($this->input('registration_status') === 'confirmed' ? ['private', 'public'] : ['private'])],
             'shortage_policy' => ['required', Rule::in(['reject', 'backorder'])],
             'default_sale_price' => ['nullable', 'required_if:registration_status,confirmed', 'regex:/^\d{1,15}(\.\d{1,4})?$/'],
+            'tax_rate_id' => ['nullable', 'integer', Rule::exists('tax_rates', 'id')->where(fn ($query) => $query->where('status', 'active')->orWhere('id', $this->route('product')?->tax_rate_id ?? 0))],
             'lock_version' => [$this->route('product') ? 'required' : 'nullable', 'integer', 'min:0'],
         ];
     }
@@ -202,6 +203,8 @@ class ProductRequest extends FormRequest
             'shortage_policy.in' => '在庫不足時の扱いを選び直してください。',
             'default_sale_price.required_if' => '本登録には標準販売単価が必要です。',
             'default_sale_price.regex' => '単価は0以上、整数15桁・小数4桁以内で入力してください。',
+            'tax_rate_id.integer' => '税率区分を選び直してください。',
+            'tax_rate_id.exists' => '有効な税率区分を選択してください。',
             'lock_version.required' => '画面を再読み込みしてから保存してください。',
         ];
     }

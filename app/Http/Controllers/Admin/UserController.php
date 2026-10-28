@@ -24,9 +24,10 @@ class UserController extends Controller
     {
         $user = new User($request->safe()->only(['name', 'email', 'password']));
         $user->role = $request->validated('role');
+        $user->email_verified_at = now();
         $user->save();
         event(new Registered($user));
 
-        return redirect()->route('admin.dashboard')->with('status', 'アカウントを作成し、確認メールを送信しました。');
+        return redirect()->route('admin.dashboard')->with('status', 'アカウントを作成しました。');
     }
 }

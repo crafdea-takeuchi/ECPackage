@@ -132,9 +132,9 @@ class AuthenticationTest extends TestCase
         $this->actingAs($admin)->post('/admin/users', [...$this->account(), 'role' => $role])->assertRedirect('/admin');
         $user = User::where('email', 'new@example.test')->firstOrFail();
         $this->assertSame($role, $user->role);
-        $this->assertNull($user->email_verified_at);
+        $this->assertNotNull($user->email_verified_at);
         $this->assertAuthenticatedAs($admin);
-        Notification::assertSentTo($user, VerifyEmail::class);
+        Notification::assertNotSentTo($user, VerifyEmail::class);
     }
 
     public function test_invalid_admin_role_does_not_create_account(): void
@@ -218,6 +218,6 @@ class AuthenticationTest extends TestCase
         $user = User::where('email', 'owner@example.test')->firstOrFail();
         $this->assertSame('admin', $user->role);
         $this->assertNotNull($user->email_verified_at);
-        $this->assertTrue(Hash::check('Owner-password123',$user->password));
+        $this->assertTrue(Hash::check('Owner-password123', $user->password));
     }
 }

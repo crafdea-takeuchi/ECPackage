@@ -10,6 +10,7 @@ use App\Models\ProductSupplier;
 use App\Models\PurchaseReceipt;
 use App\Models\PurchaseReceiptLine;
 use App\Models\Supplier;
+use App\Models\TaxRate;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -172,6 +173,50 @@ class CustomerShoppingTest extends TestCase
         $this->assertDatabaseCount('order_allocations', 1);
         $this->assertDatabaseCount('stock_movements', 1);
         $this->assertNull(session('cart'));
+    }
+
+    public function test_checkout_adds_taxes_per_tax_rate_and_saves_them_on_the_order(): void
+    {
+        $reduced = TaxRate::factory()->create(['code' => 'reduced', 'name' => '軽減税率', 'rate' => '8.00']);
+        $standard = TaxRate::factory()->create(['code' => 'standard', 'name' => '標準税率', 'rate' => '10.00']);
+        $food = $this->sellableProduct('TAX-8', productOverrides: ['tax_rate_id' => $reduced->id]);
+        $goods = $this->sellableProduct('TAX-10', productOverrides: ['tax_rate_id' => $standard->id, 'default_sale_price' => '450.2500']);
+        $exempt = $this->sellableProduct('TAX-0', productOverrides: ['default_sale_price' => '100']);
+        $cart = [$food['product']->id => '3', $goods['product']->id => '1', $exempt['product']->id => '2'];
+        $this->actingAs(User::factory()->create())->withSession(['cart' => $cart]);
+
+        $this->get('/checkout')->assertInertia(fn (Assert $page) => $page
+            ->component('Checkout/Create')
+            ->where('subtotal', '1551.7500')
+            ->where('taxes', [
+                ['name' => '標準税率', 'rate' => '10.00', 'taxable_amount' => '450.2500', 'tax_amount' => '45.0000'],
+                ['name' => '軽減税率', 'rate' => '8.00', 'taxable_amount' => '901.5000', 'tax_amount' => '72.0000'],
+                ['name' => '非課税', 'rate' => '0.00', 'taxable_amount' => '200.0000', 'tax_amount' => '0.0000'],
+            ])
+            ->where('taxAmount', '117.0000')
+            ->where('total', '1668.7500'));
+
+        $this->post('/checkout', $this->checkoutInput())->assertSessionHasNoErrors();
+
+        $order = Order::with('lines')->firstOrFail();
+        $this->assertSame('1551.7500', $order->subtotal);
+        $this->assertSame('117.0000', $order->tax_amount);
+        $this->assertSame('1668.7500', $order->total);
+        $lines = $order->lines->keyBy('product_sku');
+        $this->assertSame(['軽減税率', '8.00'], [$lines['TAX-8']->tax_rate_name, $lines['TAX-8']->tax_rate]);
+        $this->assertSame(['標準税率', '10.00'], [$lines['TAX-10']->tax_rate_name, $lines['TAX-10']->tax_rate]);
+        $this->assertSame([null, '0.00'], [$lines['TAX-0']->tax_rate_name, $lines['TAX-0']->tax_rate]);
+
+        $this->get('/orders/'.$order->id)->assertInertia(fn (Assert $page) => $page
+            ->component('Orders/Show')
+            ->where('order.subtotal', '1551.7500')
+            ->where('order.tax_amount', '117.0000')
+            ->where('order.total', '1668.7500')
+            ->where('taxes', [
+                ['name' => '標準税率', 'rate' => '10.00', 'taxable_amount' => '450.2500', 'tax_amount' => '45.0000'],
+                ['name' => '軽減税率', 'rate' => '8.00', 'taxable_amount' => '901.5000', 'tax_amount' => '72.0000'],
+                ['name' => '非課税', 'rate' => '0.00', 'taxable_amount' => '200.0000', 'tax_amount' => '0.0000'],
+            ]));
     }
 
     public function test_checkout_stock_change_rolls_back_order_and_preserves_cart(): void

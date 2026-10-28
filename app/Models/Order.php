@@ -41,6 +41,7 @@ class Order extends Model
         return [
             'ordered_on' => 'date:Y-m-d',
             'subtotal' => 'decimal:4',
+            'tax_amount' => 'decimal:4',
             'total' => 'decimal:4',
             'confirmed_at' => 'datetime',
             'backorder_completed_at' => 'datetime',

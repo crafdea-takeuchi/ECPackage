@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class PlaceCustomerOrder
 {
-    public function __construct(private ConfirmOrder $confirmOrder) {}
+    public function __construct(private ConfirmOrder $confirmOrder, private CalculateTaxes $calculateTaxes) {}
 
     /**
      * @param  array<int|string, string|int|float>  $cart
@@ -29,7 +29,7 @@ class PlaceCustomerOrder
                 ->where('registration_status', 'confirmed')
                 ->where('publication_status', 'public')
                 ->whereNotNull('default_sale_price')
-                ->with('unit:id,name,quantity_scale')
+                ->with(['unit:id,name,quantity_scale', 'taxRate:id,name,rate'])
                 ->get()->keyBy('id');
             if ($products->count() !== count($cart)) {
                 throw ValidationException::withMessages(['cart' => '購入できない商品が含まれています。カートを確認してください。']);
@@ -43,6 +43,7 @@ class PlaceCustomerOrder
             $order->save();
 
             $subtotal = '0';
+            $lines = [];
             foreach (collect($cart)->keys()->map(fn ($id): int => (int) $id)->sort()->values() as $index => $productId) {
                 $product = $products->get($productId);
                 $quantity = (string) $cart[$productId];
@@ -63,11 +64,19 @@ class PlaceCustomerOrder
                     'quantity' => $quantity,
                     'unit_sale_price' => $product->default_sale_price,
                     'line_amount' => $amount,
+                    'tax_rate_name' => $product->taxRate?->name,
+                    'tax_rate' => $product->taxRate?->rate ?? '0',
                 ]);
                 $order->lines()->save($line);
+                $lines[] = ['tax_rate_name' => $line->tax_rate_name, 'tax_rate' => $line->tax_rate, 'amount' => $amount];
             }
-            $order->subtotal = $subtotal;
-            $order->total = $subtotal;
+            $amounts = $this->calculateTaxes->handle($lines);
+            if (bccomp($amounts['total'], '999999999999999.9999', 4) === 1) {
+                throw ValidationException::withMessages(['cart' => '注文金額の合計が上限を超えています。']);
+            }
+            $order->subtotal = $amounts['subtotal'];
+            $order->tax_amount = $amounts['tax_amount'];
+            $order->total = $amounts['total'];
             $order->save();
 
             return $this->confirmOrder->handle($order, $customer);

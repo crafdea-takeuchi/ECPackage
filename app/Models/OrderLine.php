@@ -15,11 +15,11 @@ class OrderLine extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['line_number', 'product_id', 'product_sku', 'product_name', 'unit_name', 'quantity', 'backordered_initial_quantity', 'backordered_quantity', 'backorder_fulfilled_at', 'unit_sale_price', 'line_amount'];
+    protected $fillable = ['line_number', 'product_id', 'product_sku', 'product_name', 'unit_name', 'quantity', 'backordered_initial_quantity', 'backordered_quantity', 'backorder_fulfilled_at', 'unit_sale_price', 'line_amount', 'tax_rate_name', 'tax_rate'];
 
     protected function casts(): array
     {
-        return ['line_number' => 'integer', 'quantity' => 'decimal:4', 'backordered_initial_quantity' => 'decimal:4', 'backordered_quantity' => 'decimal:4', 'backorder_fulfilled_at' => 'datetime', 'unit_sale_price' => 'decimal:4', 'line_amount' => 'decimal:4'];
+        return ['line_number' => 'integer', 'quantity' => 'decimal:4', 'backordered_initial_quantity' => 'decimal:4', 'backordered_quantity' => 'decimal:4', 'backorder_fulfilled_at' => 'datetime', 'unit_sale_price' => 'decimal:4', 'line_amount' => 'decimal:4', 'tax_rate' => 'decimal:2'];
     }
 
     public function order(): BelongsTo

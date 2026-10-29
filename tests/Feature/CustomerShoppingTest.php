@@ -130,6 +130,27 @@ class CustomerShoppingTest extends TestCase
         $this->assertSame([], session('cart'));
     }
 
+    public function test_cart_shows_taxes_per_tax_rate_and_total_including_tax(): void
+    {
+        $reduced = TaxRate::factory()->create(['code' => 'reduced', 'name' => '軽減税率', 'rate' => '8.00']);
+        $standard = TaxRate::factory()->create(['code' => 'standard', 'name' => '標準税率', 'rate' => '10.00']);
+        $food = $this->sellableProduct('TAX-8', productOverrides: ['tax_rate_id' => $reduced->id]);
+        $goods = $this->sellableProduct('TAX-10', productOverrides: ['tax_rate_id' => $standard->id, 'default_sale_price' => '450.2500']);
+        $exempt = $this->sellableProduct('TAX-0', productOverrides: ['default_sale_price' => '100']);
+        $this->withSession(['cart' => [$food['product']->id => '3', $goods['product']->id => '1', $exempt['product']->id => '2']]);
+
+        $this->get('/cart')->assertInertia(fn (Assert $page) => $page
+            ->component('Cart/Index')
+            ->where('subtotal', '1551.7500')
+            ->where('taxes', [
+                ['name' => '標準税率', 'rate' => '10.00', 'taxable_amount' => '450.2500', 'tax_amount' => '45.0000'],
+                ['name' => '軽減税率', 'rate' => '8.00', 'taxable_amount' => '901.5000', 'tax_amount' => '72.0000'],
+                ['name' => '非課税', 'rate' => '0.00', 'taxable_amount' => '200.0000', 'tax_amount' => '0.0000'],
+            ])
+            ->where('taxAmount', '117.0000')
+            ->where('total', '1668.7500'));
+    }
+
     public function test_cart_rejects_unavailable_invalid_scale_and_excess_quantity(): void
     {
         $context = $this->sellableProduct(quantity: '5', quantityScale: 0);

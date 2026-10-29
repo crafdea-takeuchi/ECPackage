@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Actions\Cart\LoadCart;
+use App\Actions\Orders\CalculateTaxes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CartItemRequest;
 use App\Models\Product;
@@ -13,9 +14,22 @@ use Inertia\Response;
 
 class CartController extends Controller
 {
-    public function index(LoadCart $loadCart): Response
+    public function index(LoadCart $loadCart, CalculateTaxes $calculateTaxes): Response
     {
-        return Inertia::render('Cart/Index', $loadCart->handle(session('cart', [])));
+        $cart = $loadCart->handle(session('cart', []));
+        $amounts = $calculateTaxes->handle($cart['items']->map(fn (array $item): array => [
+            'tax_rate_name' => $item['product']->taxRate?->name,
+            'tax_rate' => $item['product']->taxRate?->rate ?? '0',
+            'amount' => $item['amount'],
+        ]));
+
+        return Inertia::render('Cart/Index', [
+            'items' => $cart['items'],
+            'subtotal' => $amounts['subtotal'],
+            'taxes' => $amounts['taxes'],
+            'taxAmount' => $amounts['tax_amount'],
+            'total' => $amounts['total'],
+        ]);
     }
 
     public function store(CartItemRequest $request): RedirectResponse

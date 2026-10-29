@@ -42,7 +42,8 @@ class DatabaseSeeder extends Seeder
             $this->command?->warn('Initial password: '.$password);
         }
 
-        $this->call(ProductCatalogSeeder::class);
+        // Registered products are opt-in: php artisan db:seed --class=RegisteredProductSeeder
+        // $this->call(ProductCatalogSeeder::class);
 
         // Demo data is opt-in: php artisan db:seed --class=DemoCatalogSeeder
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Shop;
 
+use App\Actions\Orders\CalculateTaxes;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
@@ -12,7 +13,7 @@ use Inertia\Response;
 
 class ShopController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, CalculateTaxes $calculateTaxes): Response
     {
         $filters = $request->validate(['q' => ['nullable', 'string', 'max:150'], 'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')], 'availability' => ['nullable', Rule::in(['available', 'sold_out'])]]);
         $query = Product::query()->where('registration_status', 'confirmed')->where('publication_status', 'public')->whereNotNull('default_sale_price');
@@ -31,8 +32,12 @@ class ShopController extends Controller
             })->pluck('id');
             $query->whereIn('id', $matching);
         }
-        $products = $query->with(['images', 'unit:id,name,code,quantity_scale', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])->orderBy('name')->paginate(12)->withQueryString();
-        $products->getCollection()->each(fn (Product $product) => $product->setAttribute('available_quantity', $product->availableQuantity()));
+        $products = $query->with(['images', 'unit:id,name,code,quantity_scale', 'taxRate:id,name,rate', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])->orderBy('name')->paginate(12)->withQueryString();
+        $products->getCollection()->each(fn (Product $product) => $product->setAttribute('available_quantity', $product->availableQuantity())->setAttribute('price_including_tax', $calculateTaxes->handle([[
+            'tax_rate_name' => $product->taxRate?->name,
+            'tax_rate' => $product->taxRate?->rate ?? '0',
+            'amount' => $product->default_sale_price,
+        ]])['total']));
 
         return Inertia::render('Shop/Index', ['products' => $products, 'filters' => $filters, 'categories' => Category::where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(['id', 'name'])]);
     }

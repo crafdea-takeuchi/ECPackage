@@ -86,12 +86,28 @@ class CustomerShoppingTest extends TestCase
                 ->where('products.total', 1)
                 ->where('products.data.0.id', $sellable['product']->id)
                 ->where('products.data.0.available_quantity', 10)
-                ->where('products.data.0.categories.0.name', '飲料'));
+                ->where('products.data.0.categories.0.name', '飲料')
+                ->where('products.data.0.price_including_tax', '300.5000'));
 
         $sellable['lot']->update(['current_quantity' => 0, 'status' => 'depleted']);
         $this->get('/shop?availability=sold_out')->assertInertia(fn (Assert $page) => $page
             ->where('products.total', 1)
             ->where('products.data.0.id', $sellable['product']->id));
+    }
+
+    public function test_shop_shows_prices_including_tax_rounded_down_per_unit(): void
+    {
+        $reduced = TaxRate::factory()->create(['code' => 'reduced', 'name' => '軽減税率', 'rate' => '8.00']);
+        $standard = TaxRate::factory()->create(['code' => 'standard', 'name' => '標準税率', 'rate' => '10.00']);
+        $this->sellableProduct('TAX-8', productOverrides: ['tax_rate_id' => $reduced->id]);
+        $this->sellableProduct('TAX-10', productOverrides: ['tax_rate_id' => $standard->id, 'default_sale_price' => '450.2500']);
+
+        $this->get('/shop')->assertInertia(fn (Assert $page) => $page
+            ->component('Shop/Index')
+            ->where('products.data.0.sku', 'TAX-10')
+            ->where('products.data.0.price_including_tax', '495.2500')
+            ->where('products.data.1.sku', 'TAX-8')
+            ->where('products.data.1.price_including_tax', '324.5000'));
     }
 
     public function test_guest_can_add_accumulate_update_and_remove_cart_items(): void

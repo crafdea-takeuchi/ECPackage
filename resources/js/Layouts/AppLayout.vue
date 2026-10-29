@@ -5,9 +5,9 @@ defineProps({ admin: Boolean });
 </script>
 <template>
   <div class="min-h-screen bg-[#f6f7f4] text-slate-800">
-    <header class="border-b border-slate-200 bg-white">
+    <header class="border-b border-sky-200 bg-sky-50">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-        <Link href="/" class="text-2xl font-bold tracking-tight text-emerald-900">EC<span class="font-normal text-slate-400">02</span></Link>
+        <Link href="/" class="text-2xl font-bold tracking-tight text-emerald-900">DCC</Link>
         <nav aria-label="メインメニュー" class="flex flex-wrap items-center gap-5 text-sm">
           <Link href="/" class="nav-link">ホーム</Link>
           <Link href="/shop" class="nav-link">商品一覧</Link>
@@ -34,7 +34,6 @@ defineProps({ admin: Boolean });
       <slot />
     </main>
     <footer class="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-6 py-8 text-xs text-slate-500">
-      <span>EC02 · あなたの毎日に、ちょうどいいものを。</span>
     </footer>
   </div>
 </template>

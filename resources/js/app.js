@@ -1,7 +1,7 @@
 import { createApp, h } from 'vue';
 import { createInertiaApp } from '@inertiajs/vue3';
 createInertiaApp({
-    title: title => title ? `${title} | EC02` : 'EC02',
+    title: title => title ? `${title} | DCC` : 'DCC',
     resolve: name => {
         const pages = import.meta.glob('./Pages/**/*.vue', { eager: true });
         return pages[`./Pages/${name}.vue`];

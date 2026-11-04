@@ -29,6 +29,7 @@ Route::get('/product-images/{productImage}/{variant}', [ProductImageController::
     ->where('variant', 'full|thumbnail')->name('product-images.show');
 Route::inertia('/', 'Home')->name('home');
 Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+Route::get('/shop/{product}', [ShopController::class, 'show'])->name('shop.show');
 Route::get('/cart', [CartController::class, 'index'])->name('cart.index');
 Route::post('/cart', [CartController::class, 'store'])->name('cart.store');
 Route::patch('/cart/{product}', [CartController::class, 'update'])->name('cart.update');

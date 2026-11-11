@@ -10,10 +10,12 @@ use App\Models\ProductSupplier;
 use App\Models\PurchaseReceipt;
 use App\Models\PurchaseReceiptLine;
 use App\Models\Supplier;
+use App\Models\TaxRate;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use PHPUnit\Framework\Attributes\TestWith;
 use Tests\TestCase;
 
 class OrderManagementTest extends TestCase
@@ -219,6 +221,96 @@ class OrderManagementTest extends TestCase
             'product_id' => $context['product']->id, 'quantity' => '1.5', 'unit_sale_price' => '100',
         ]]]))->assertSessionHasErrors(['lines.0.quantity' => 'この販売商品の数量は整数で入力してください。']);
         $this->assertDatabaseCount('orders', 0);
+    }
+
+    #[TestWith([['10.00'], '1000.0000', '100.0000', '1100.0000'])]
+    #[TestWith([['10.00', '8.00'], '2000.0000', '180.0000', '2180.0000'])]
+    public function test_order_detail_preserves_saved_amounts_after_current_tax_rates_change(array $rates, string $subtotal, string $taxAmount, string $total): void
+    {
+        $order = Order::factory()->create(['status' => 'confirmed', 'subtotal' => $subtotal, 'tax_amount' => $taxAmount, 'total' => $total]);
+        $currentTaxRate = TaxRate::factory()->create(['rate' => '15.00']);
+        foreach ($rates as $index => $rate) {
+            $product = Product::factory()->create(['tax_rate_id' => $currentTaxRate->id]);
+            OrderLine::factory()->create([
+                'order_id' => $order->id,
+                'line_number' => $index + 1,
+                'product_id' => $product->id,
+                'unit_sale_price' => '1000.0000',
+                'line_amount' => '1000.0000',
+                'tax_rate_name' => $index === 0 ? '注文時の標準税率' : '注文時の軽減税率',
+                'tax_rate' => $rate,
+            ]);
+        }
+
+        $this->actingAs(User::factory()->admin()->create())->get('/admin/orders/'.$order->id.'/edit')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Orders/Form')
+            ->where('order.subtotal', $subtotal)
+            ->where('order.tax_amount', $taxAmount)
+            ->where('order.total', $total)
+            ->where('order.lines.0.tax_rate', '10.00')
+            ->where('order.lines.0.display_tax_amount', '100.0000')
+            ->where('taxes', count($rates) === 2 ? [
+                ['name' => '注文時の標準税率', 'rate' => '10.00', 'taxable_amount' => '1000.0000', 'tax_amount' => '100.0000'],
+                ['name' => '注文時の軽減税率', 'rate' => '8.00', 'taxable_amount' => '1000.0000', 'tax_amount' => '80.0000'],
+            ] : [
+                ['name' => '注文時の標準税率', 'rate' => '10.00', 'taxable_amount' => '1000.0000', 'tax_amount' => '100.0000'],
+            ])
+            ->has('order.lines', count($rates)));
+
+        $this->assertSame($total, bcadd($subtotal, $taxAmount, 4));
+        $this->assertSame($taxAmount, $order->fresh()->tax_amount);
+    }
+
+    public function test_existing_order_without_tax_snapshots_keeps_zero_saved_tax(): void
+    {
+        $order = Order::factory()->create(['status' => 'confirmed', 'subtotal' => '501.0000', 'total' => '501.0000']);
+        OrderLine::factory()->create(['order_id' => $order->id, 'unit_sale_price' => '501.0000', 'line_amount' => '501.0000']);
+
+        $this->actingAs(User::factory()->admin()->create())->get('/admin/orders/'.$order->id.'/edit')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Orders/Form')
+            ->where('order.subtotal', '501.0000')
+            ->where('order.tax_amount', '0.0000')
+            ->where('order.total', '501.0000')
+            ->where('order.lines.0.tax_rate_name', null)
+            ->where('order.lines.0.tax_rate', '0.00')
+            ->where('order.lines.0.display_tax_amount', '0.0000'));
+    }
+
+    #[TestWith([['4', '6'], ['0.0000', '1.0000'], '10.0000'])]
+    #[TestWith([['6', '6', '3'], ['1.0000', '0.0000', '0.0000'], '15.0000'])]
+    public function test_line_tax_rounding_is_allocated_within_the_tax_group(array $prices, array $expectedTaxes, string $subtotal): void
+    {
+        $order = Order::factory()->create(['status' => 'confirmed', 'subtotal' => $subtotal, 'tax_amount' => '1.0000', 'total' => bcadd($subtotal, '1', 4)]);
+        foreach ($prices as $index => $price) {
+            OrderLine::factory()->create(['order_id' => $order->id, 'line_number' => $index + 1, 'unit_sale_price' => $price, 'line_amount' => $price, 'tax_rate_name' => '標準税率', 'tax_rate' => '10.00']);
+        }
+
+        $this->actingAs(User::factory()->admin()->create())->get('/admin/orders/'.$order->id.'/edit')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('order.lines', fn ($lines): bool => $lines->pluck('display_tax_amount')->all() === $expectedTaxes)
+            ->where('order.tax_amount', '1.0000')
+            ->where('taxes.0.tax_amount', '1.0000'));
+
+        $this->assertSame('1.0000', $order->fresh()->tax_amount);
+        $this->assertArrayNotHasKey('display_tax_amount', $order->lines()->first()->getAttributes());
+    }
+
+    #[TestWith(['1000.0000', '0.0000', '1000.0000'])]
+    #[TestWith(['900.0000', '100.0000', '1000.0000'])]
+    #[TestWith(['1000.0000', '100.0000', '1300.0000'])]
+    public function test_inconsistent_snapshots_do_not_display_invented_line_taxes(string $subtotal, string $taxAmount, string $total): void
+    {
+        $order = Order::factory()->create(['status' => 'confirmed', 'subtotal' => $subtotal, 'tax_amount' => $taxAmount, 'total' => $total]);
+        OrderLine::factory()->create(['order_id' => $order->id, 'unit_sale_price' => '1000', 'line_amount' => '1000', 'tax_rate_name' => '標準税率', 'tax_rate' => '10.00']);
+
+        $this->actingAs(User::factory()->admin()->create())->get('/admin/orders/'.$order->id.'/edit')
+            ->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->where('order.lines.0.display_tax_amount', null)
+            ->where('taxes', [])
+            ->where('order.tax_amount', $taxAmount)
+            ->where('order.total', $total));
     }
 
     public function test_order_list_filters_and_detail_includes_lot_allocations(): void

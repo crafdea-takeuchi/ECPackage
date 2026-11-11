@@ -2,9 +2,12 @@
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import AdminLayout from '../../../Layouts/AdminLayout.vue';
+import OrderAmounts from '../../../Components/Admin/OrderAmounts.vue';
+import OrderLineTax from '../../../Components/Admin/OrderLineTax.vue';
 
-const props = defineProps({ order: Object, customers: Array, products: Array, cancellableStatuses: { type: Array, default: () => [] } });
-const mapLine = line => ({ id: line.id ?? null, product_id: line.product_id ?? '', quantity: line.quantity ?? '', unit_sale_price: line.unit_sale_price ?? '' });
+const props = defineProps({ order: Object, customers: Array, products: Array, taxes: { type: Array, default: () => [] }, cancellableStatuses: { type: Array, default: () => [] } });
+const inputNumber = value => value == null ? '' : String(value).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '');
+const mapLine = line => ({ id: line.id ?? null, product_id: line.product_id ?? '', quantity: inputNumber(line.quantity), unit_sale_price: inputNumber(line.unit_sale_price) });
 const form = useForm({ customer_id: props.order?.customer_id ?? '', ordered_on: props.order?.ordered_on ?? new Date().toLocaleDateString('en-CA'), notes: props.order?.notes ?? '', lock_version: props.order?.lock_version ?? 0, action: 'draft', lines: props.order?.lines?.map(mapLine) ?? [] });
 const confirmed = computed(() => props.order && props.order.status !== 'draft');
 const statusLabels = { draft: '下書き', confirmed: '受付済み', preparing: '準備中', shipped: '発送済み', completed: '完了', cancelled: 'キャンセル' };
@@ -18,7 +21,7 @@ const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4
 const productFor = line => props.products.find(product => String(product.id) === String(line.product_id));
 const usedByOtherLine = (productId, index) => form.lines.some((line, lineIndex) => lineIndex !== index && String(line.product_id) === String(productId));
 const makeLine = () => ({ id: null, product_id: '', quantity: '', unit_sale_price: '' });
-function changeProduct(line) { line.unit_sale_price = productFor(line)?.default_sale_price ?? ''; }
+function changeProduct(line) { line.unit_sale_price = inputNumber(productFor(line)?.default_sale_price); }
 function reloadFromProps() {
   if (!props.order) return;
   Object.assign(form, { customer_id: props.order.customer_id, ordered_on: props.order.ordered_on, notes: props.order.notes ?? '', lock_version: props.order.lock_version, action: 'draft', lines: props.order.lines.map(mapLine) });
@@ -61,11 +64,14 @@ function save(action) {
               <div class="lg:col-span-2"><label :for="`order-price-${index}`" class="mb-2 block text-sm font-medium">販売単価 <span class="text-xs text-red-600">必須</span></label><input :id="`order-price-${index}`" v-model="line.unit_sale_price" type="number" min="0" step="0.0001" class="field" :disabled="confirmed" /></div>
               <div class="lg:col-span-3"><p class="mb-2 text-sm font-medium">商品金額</p><p class="rounded-lg bg-slate-50 px-4 py-3 text-right font-semibold tabular-nums">{{ money((Number(line.quantity) || 0) * (Number(line.unit_sale_price) || 0)) }}</p></div>
             </div>
+            <OrderLineTax v-if="confirmed" :line="order.lines[index]" />
             <div v-if="confirmed && order.lines[index]?.components?.length" class="mt-4 rounded-lg border border-blue-100 bg-blue-50/50 p-4"><p class="text-xs font-semibold text-blue-900">注文確定時のセット内容</p><ul class="mt-2 space-y-1 text-sm text-blue-950"><li v-for="component in order.lines[index].components" :key="component.id">{{ component.component_name }}：{{ money(component.quantity_per_set) }} {{ component.unit_name }} × {{ money(order.lines[index].quantity) }} セット（必要数 {{ money(component.required_quantity) }} {{ component.unit_name }}）</li></ul></div><div v-if="confirmed && order.lines[index]?.backorders?.length" class="mt-3 space-y-1"><p v-for="backorder in order.lines[index].backorders" :key="backorder.id" class="text-sm font-semibold" :class="Number(backorder.remaining_quantity) > 0 ? 'text-amber-700' : 'text-emerald-700'">{{ backorder.stock_product_name }}：{{ Number(backorder.remaining_quantity) > 0 ? `取り寄せ残 ${money(backorder.remaining_quantity)} ${backorder.unit_name}` : '取り寄せ分は入荷・引当済みです' }}</p></div><p v-if="confirmed && !order.lines[index]?.components?.length && Number(order.lines[index]?.backordered_quantity) > 0" class="mt-3 text-sm font-semibold text-amber-700">取り寄せ残：{{ money(order.lines[index].backordered_quantity) }} {{ order.lines[index].unit_name }}</p><p v-else-if="confirmed && !order.lines[index]?.components?.length && Number(order.lines[index]?.backordered_initial_quantity) > 0" class="mt-3 text-sm font-semibold text-emerald-700">取り寄せ分は入荷・引当済みです。</p><div v-if="confirmed && order.lines[index]?.allocations?.length" class="mt-4 rounded-lg bg-slate-50 p-4"><p class="text-xs font-semibold text-slate-500">引当ロット</p><div class="mt-2 flex flex-wrap gap-2"><span v-for="allocation in order.lines[index].allocations" :key="allocation.id" class="rounded-full bg-white px-3 py-1 text-xs"><span v-if="allocation.order_line_component" class="font-semibold">{{ allocation.order_line_component.component_name }}｜</span>{{ allocation.inventory_lot.lot_number }}：{{ money(allocation.quantity) }} {{ allocation.order_line_component?.unit_name ?? order.lines[index].unit_name }}</span></div></div>
           </article>
           <div v-if="!form.lines.length" class="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-500">「商品を追加」から注文商品を追加してください。</div>
         </div>
-        <div class="flex items-center justify-between border-t border-slate-200 p-6"><span class="text-sm text-slate-500">注文金額</span><strong class="text-xl tabular-nums">{{ money(total) }}</strong></div>
+        <p v-if="confirmed" class="px-6 pb-4 text-xs text-slate-500">明細税額は注文時の税率・商品金額から求めた表示用の配分額です。税率区分ごとの端数を調整し、保存済み税額と一致する場合のみ表示します。</p>
+        <OrderAmounts v-if="confirmed" :order="order" :taxes="taxes" />
+        <div v-else class="flex items-center justify-between border-t border-slate-200 p-6"><span class="text-sm text-slate-500">注文金額</span><strong class="text-xl tabular-nums">{{ money(total) }}</strong></div>
       </section>
       <div v-if="!confirmed" class="flex flex-wrap justify-end gap-3"><button type="submit" class="rounded-lg border border-slate-300 bg-white px-5 py-3 text-sm font-semibold disabled:opacity-50" :disabled="form.processing">{{ form.processing ? '保存中…' : '下書き保存' }}</button><button type="button" @click="save('confirm')" class="btn-primary min-w-48" :disabled="form.processing">{{ form.processing ? '処理中…' : '注文を確定' }}</button></div>
     </form>

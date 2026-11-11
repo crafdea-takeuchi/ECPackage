@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\Orders\CancelOrder;
 use App\Actions\Orders\ConfirmOrder;
+use App\Actions\Orders\OrderTaxDisplay;
 use App\Actions\Orders\UpdateOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\OrderRequest;
@@ -62,12 +63,18 @@ class OrderController extends Controller
         return Inertia::render('Admin/Orders/Form', ['order' => null, 'customers' => $this->customers(), 'products' => $this->products()]);
     }
 
-    public function edit(Order $order): Response
+    public function edit(Order $order, OrderTaxDisplay $orderTaxDisplay): Response
     {
         $order->load(['customer:id,name,email', 'lines.components', 'lines.backorders', 'lines.allocations.inventoryLot:id,lot_number', 'lines.allocations.orderLineComponent:id,component_name,unit_name', 'stockOperation:id,operation_number', 'cancellationStockOperation:id,operation_number', 'shipments.lines']);
 
+        $taxDisplay = $orderTaxDisplay->handle($order);
+        foreach ($order->lines as $line) {
+            $line->setAttribute('display_tax_amount', $taxDisplay['line_taxes'][$line->id]);
+        }
+
         return Inertia::render('Admin/Orders/Form', [
             'order' => $order,
+            'taxes' => $taxDisplay['taxes'],
             'customers' => $this->customers($order),
             'products' => $this->products($order),
             'cancellableStatuses' => OrderSetting::current()->cancellable_statuses,

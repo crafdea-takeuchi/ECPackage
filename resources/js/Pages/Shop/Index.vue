@@ -1,7 +1,8 @@
 <script setup>
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { reactive } from 'vue';
+import { reactive, watch } from 'vue';
 import ProductImage from '../../Components/ProductImage.vue';
+import ProductVariantSelect from '../../Components/ProductVariantSelect.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
 const props = defineProps({ products: Object, filters: Object, categories: Array });
@@ -10,8 +11,22 @@ const search = reactive({
   q: props.filters.q ?? '',
   category_id: props.filters.category_id ?? '',
   availability: props.filters.availability ?? '',
+  attribute: props.filters.attribute ?? '',
 });
-const quantities = reactive(Object.fromEntries(props.products.data.map(product => [product.id, '1'])));
+const quantities = reactive({});
+const selections = reactive({});
+watch(() => props.products.data, products => {
+  products.forEach(product => {
+    product.variants.forEach(variant => { quantities[variant.id] ??= '1'; });
+    if (!product.variants.some(variant => String(variant.id) === selections[product.group_key])) selections[product.group_key] = '';
+  });
+}, { immediate: true });
+const selectedFor = product => product.variants.find(variant => String(variant.id) === selections[product.group_key]);
+const chosen = product => product.variant_count === 1 ? product.variants[0] : selectedFor(product);
+const canOrder = variant => variant && (Number(variant.available_quantity) > 0 || variant.shortage_policy === 'backorder');
+const stockStatus = product => selectedFor(product) ? (Number(selectedFor(product).available_quantity) > 0 ? 'available' : (selectedFor(product).shortage_policy === 'backorder' ? 'backorder' : 'sold_out')) : product.stock_status;
+const detailId = product => chosen(product)?.id ?? product.id;
+const quantityStep = product => 1 / (10 ** Number(chosen(product)?.unit?.quantity_scale ?? 0));
 const pending = reactive({ productId: null });
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
 
@@ -20,15 +35,17 @@ function submit() {
 }
 
 function reset() {
-  Object.assign(search, { q: '', category_id: '', availability: '' });
+  Object.assign(search, { q: '', category_id: '', availability: '', attribute: '' });
   router.get('/shop');
 }
 
 function add(product) {
-  pending.productId = product.id;
+  const variant = chosen(product);
+  if (!canOrder(variant)) return;
+  pending.productId = variant.id;
   router.post('/cart', {
-    product_id: product.id,
-    quantity: quantities[product.id],
+    product_id: variant.id,
+    quantity: quantities[variant.id],
   }, {
     preserveScroll: true,
     onFinish: () => {
@@ -57,9 +74,9 @@ function add(product) {
       {{ page.props.errors.quantity || page.props.errors.product_id }}
     </div>
 
-    <form class="my-7 grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4" @submit.prevent="submit">
+    <form class="my-7 grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-3" @submit.prevent="submit">
       <div>
-        <label for="shop-q" class="mb-2 block text-sm font-medium">商品名・商品コード</label>
+        <label for="shop-q" class="mb-2 block text-sm font-medium">商品名・商品コード・基本商品名</label>
         <input id="shop-q" v-model="search.q" class="field" maxlength="150">
       </div>
       <div>
@@ -75,18 +92,21 @@ function add(product) {
           <option value="">すべて</option>
           <option value="available">在庫あり</option>
           <option value="sold_out">在庫なし</option>
+          <option value="backorder">取り寄せ可能</option>
         </select>
       </div>
+      <div><label for="shop-attribute" class="mb-2 block text-sm font-medium">属性・バリエーション</label><input id="shop-attribute" v-model="search.attribute" class="field" maxlength="150" placeholder="例：24cm、赤"></div>
       <div class="flex items-end gap-3">
         <button type="submit" class="btn-primary">検索</button>
         <button type="button" class="nav-link px-2 py-3" @click="reset">解除</button>
       </div>
     </form>
 
+    <p class="mb-4 text-sm text-slate-500">{{ products.total }}件の商品グループ<span v-if="search.q || search.category_id || search.availability || search.attribute">（価格・種類数・在庫は検索条件に一致する公開商品の情報です）</span></p>
     <section class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      <article v-for="product in products.data" :key="product.id" class="flex flex-col rounded-2xl border border-slate-200 bg-white p-6">
-        <Link :href="`/shop/${product.id}`" class="mb-4 block">
-          <ProductImage :image="product.images?.[0]" :name="product.name" />
+      <article v-for="product in products.data" :key="product.group_key" class="flex flex-col rounded-2xl border border-slate-200 bg-white p-6">
+        <Link :href="`/shop/${detailId(product)}`" class="mb-4 block">
+          <ProductImage :image="selectedFor(product) ? selectedFor(product).images?.[0] : product.images?.[0]" :name="product.name" />
         </Link>
 
         <div class="flex flex-wrap gap-2">
@@ -94,14 +114,16 @@ function add(product) {
           <span v-for="category in product.categories" :key="category.id" class="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600">{{ category.name }}</span>
         </div>
 
-        <p class="mt-5 text-xs text-slate-400">{{ product.sku }}</p>
+        <p v-if="product.variant_count === 1" class="mt-5 text-xs text-slate-400">{{ product.sku }}</p>
+        <p v-else class="mt-5 text-xs font-semibold text-emerald-700">{{ product.variant_count }}種類</p>
         <h2 class="mt-2 text-lg font-semibold text-emerald-950">
-          <Link :href="`/shop/${product.id}`" class="transition hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
+          <Link :href="`/shop/${detailId(product)}`" class="transition hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700">
             {{ product.name }}
           </Link>
         </h2>
 
-        <div v-if="product.kind === 'bundle'" class="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+        <dl v-if="product.attribute_summary.length" class="mt-4 space-y-1 text-sm text-slate-600"><div v-for="attribute in product.attribute_summary" :key="attribute.name"><dt class="inline font-medium">{{ attribute.name }}：</dt><dd class="inline">{{ attribute.values.join('・') }}{{ attribute.has_more ? ' ほか' : '' }}</dd></div></dl>
+        <div v-if="product.kind === 'bundle' && product.variant_count === 1" class="mt-4 rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
           <p class="font-semibold text-slate-700">セット内容</p>
           <ul class="mt-1 space-y-1">
             <li v-for="component in product.bundle_components" :key="component.id">
@@ -111,38 +133,31 @@ function add(product) {
         </div>
 
         <p class="mt-5 text-2xl font-bold tabular-nums">
-          {{ money(product.price_including_tax) }}
-          <span class="ml-1 text-xs font-normal text-slate-500">円（税込） / {{ product.unit.name }}</span>
+          {{ money(selectedFor(product)?.price_including_tax ?? product.price_including_tax) }}<template v-if="!selectedFor(product) && product.has_price_range">～{{ money(product.max_price_including_tax) }}</template>
+          <span class="ml-1 text-xs font-normal text-slate-500">円（税込）<template v-if="product.variant_count === 1"> / {{ product.unit.name }}</template></span>
         </p>
-        <p class="mt-3 text-sm" :class="Number(product.available_quantity) > 0 ? 'text-emerald-700' : 'text-red-600'">
-          {{ Number(product.available_quantity) > 0 ? `在庫 ${money(product.available_quantity)} ${product.unit.name}` : (product.shortage_policy === 'backorder' ? '取り寄せで注文できます' : '在庫なし') }}
+        <p class="mt-3 text-sm" :class="stockStatus(product) === 'available' ? 'text-emerald-700' : (stockStatus(product) === 'backorder' ? 'text-amber-700' : 'text-red-600')">
+          {{ stockStatus(product) === 'available' ? '在庫あり' : (stockStatus(product) === 'backorder' ? '取り寄せ可能' : '在庫切れ') }}
+          <span v-if="stockStatus(product) === 'available' && (selectedFor(product) ? selectedFor(product).shortage_policy === 'backorder' : product.can_backorder)" class="ml-2 text-xs">取り寄せ対応あり</span>
         </p>
 
-        <Link :href="`/shop/${product.id}`" class="mt-4 inline-block text-sm font-semibold text-emerald-800 hover:underline">
+        <Link :href="`/shop/${detailId(product)}`" class="mt-4 inline-block text-sm font-semibold text-emerald-800 hover:underline">
           詳細を見る →
         </Link>
 
-        <div class="mt-auto flex items-end gap-3 pt-4">
-          <div class="w-28">
-            <label :for="`shop-quantity-${product.id}`" class="mb-2 block text-xs text-slate-500">数量</label>
-            <input
-              :id="`shop-quantity-${product.id}`"
-              v-model="quantities[product.id]"
-              type="number"
-              min="1"
-              step="1"
-              class="field"
-              :disabled="Number(product.available_quantity) <= 0 && product.shortage_policy !== 'backorder'"
-            >
+        <div class="mt-auto pt-4">
+          <div v-if="product.variant_count > 1" class="mb-4">
+            <label :for="`shop-variant-${product.id}`" class="mb-2 block text-sm font-medium">バリエーション</label>
+            <ProductVariantSelect :id="`shop-variant-${product.id}`" v-model="selections[product.group_key]" :variants="product.variants" :disabled="product.variants.some(variant => variant.id === pending.productId)" />
           </div>
-          <button
-            type="button"
-            class="btn-primary grow"
-            :disabled="(Number(product.available_quantity) <= 0 && product.shortage_policy !== 'backorder') || pending.productId === product.id"
-            @click="add(product)"
-          >
-            {{ pending.productId === product.id ? '追加中…' : 'カートに追加' }}
-          </button>
+          <p v-if="selectedFor(product)" class="mb-2 text-xs text-slate-500">{{ selectedFor(product).sku }} / {{ selectedFor(product).unit.name }}</p>
+          <div class="flex items-end gap-3">
+            <div class="w-28">
+              <label :for="`shop-quantity-${product.id}`" class="mb-2 block text-xs text-slate-500">数量</label>
+              <input :id="`shop-quantity-${product.id}`" :value="quantities[chosen(product)?.id] ?? '1'" type="number" :min="quantityStep(product)" :step="quantityStep(product)" class="field" :disabled="!canOrder(chosen(product))" @input="chosen(product) && (quantities[chosen(product).id] = $event.target.value)">
+            </div>
+            <button type="button" class="btn-primary grow" :disabled="!canOrder(chosen(product)) || pending.productId === chosen(product)?.id" @click="add(product)">{{ pending.productId === chosen(product)?.id ? '追加中…' : 'カートに追加' }}</button>
+          </div>
         </div>
       </article>
     </section>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Actions\Orders\CalculateTaxes;
+use App\Actions\Products\ListShopProductGroups;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
@@ -13,29 +14,20 @@ use Inertia\Response;
 
 class ShopController extends Controller
 {
-    public function index(Request $request, CalculateTaxes $calculateTaxes): Response
+    public function index(Request $request, ListShopProductGroups $listProducts): Response
     {
-        $filters = $request->validate(['q' => ['nullable', 'string', 'max:150'], 'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')], 'availability' => ['nullable', Rule::in(['available', 'sold_out'])]]);
-        $query = Product::query()->where('registration_status', 'confirmed')->where('publication_status', 'public')->whereNotNull('default_sale_price');
-        $term = trim((string) ($filters['q'] ?? ''));
-        if ($term !== '') {
-            $query->where(fn ($product) => $product->where('name', 'like', '%'.$term.'%')->orWhere('sku', 'like', '%'.$term.'%'));
-        }
-        if ($filters['category_id'] ?? null) {
-            $query->whereHas('categories', fn ($category) => $category->whereKey($filters['category_id']));
-        }
-        if ($filters['availability'] ?? null) {
-            $matching = (clone $query)->with('bundleComponents.componentProduct.inventoryLots')->get()->filter(function (Product $product) use ($filters): bool {
-                $available = bccomp($product->availableQuantity(), '0', 4) === 1;
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')],
+            'availability' => ['nullable', Rule::in(['available', 'sold_out', 'backorder'])],
+            'attribute' => ['nullable', 'string', 'max:150'],
+        ]);
 
-                return $filters['availability'] === 'available' ? $available : ! $available;
-            })->pluck('id');
-            $query->whereIn('id', $matching);
-        }
-        $products = $query->with(['images', 'unit:id,name,code,quantity_scale', 'taxRate:id,name,rate', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])->orderBy('name')->paginate(12)->withQueryString();
-        $products->getCollection()->each(fn (Product $product) => $this->addShopAttributes($product, $calculateTaxes));
-
-        return Inertia::render('Shop/Index', ['products' => $products, 'filters' => $filters, 'categories' => Category::where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(['id', 'name'])]);
+        return Inertia::render('Shop/Index', [
+            'products' => $listProducts->handle($filters),
+            'filters' => $filters,
+            'categories' => Category::where('status', 'active')->orderBy('sort_order')->orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     public function show(Product $product, CalculateTaxes $calculateTaxes): Response
@@ -59,8 +51,7 @@ class ShopController extends Controller
                 ->where('publication_status', 'public')
                 ->whereNotNull('default_sale_price')
                 ->with($this->detailRelations())
-                ->orderBy('name')
-                ->limit(20)
+                ->orderBy('name')->orderBy('id')
                 ->get()
                 ->sortByDesc(fn (Product $variant): bool => $variant->is($product))
                 ->values()
@@ -81,6 +72,7 @@ class ShopController extends Controller
     {
         return [
             'images',
+            'inventoryLots',
             'unit:id,name,code,quantity_scale',
             'taxRate:id,name,rate',
             'categories:id,name',
@@ -94,8 +86,13 @@ class ShopController extends Controller
 
     private function addShopAttributes(Product $product, CalculateTaxes $calculateTaxes): Product
     {
+        $quantity = $product->kind !== 'bundle' && $product->relationLoaded('inventoryLots')
+            ? $product->inventoryLots->where('current_quantity', '>', 0)->sum('current_quantity')
+            : $product->availableQuantity();
+        $product->unsetRelation('inventoryLots');
+
         return $product
-            ->setAttribute('available_quantity', $product->availableQuantity())
+            ->setAttribute('available_quantity', $quantity)
             ->setAttribute('price_including_tax', $calculateTaxes->handle([[
                 'tax_rate_name' => $product->taxRate?->name,
                 'tax_rate' => $product->taxRate?->rate ?? '0',

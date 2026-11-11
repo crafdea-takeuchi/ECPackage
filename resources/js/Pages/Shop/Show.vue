@@ -4,6 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AppLayout from '../../Layouts/AppLayout.vue';
 import ProductGallery from '../../Components/ProductGallery.vue';
 import ProductImage from '../../Components/ProductImage.vue';
+import ProductVariantSelect from '../../Components/ProductVariantSelect.vue';
 
 const props = defineProps({
   product: Object,
@@ -23,16 +24,6 @@ const quantityStep = computed(() => {
   return scale > 0 ? 1 / (10 ** scale) : 1;
 });
 const description = computed(() => props.product.description || props.product.group?.description || '');
-
-function variantLabel(variant) {
-  const attributes = variant.attribute_values?.map(attribute => attribute.value).filter(Boolean).join(' / ');
-  const name = attributes || variant.name;
-  const availability = Number(variant.available_quantity) > 0
-    ? '在庫あり'
-    : (variant.shortage_policy === 'backorder' ? '取り寄せ' : '在庫なし');
-
-  return `${name} — ${money(variant.price_including_tax)}円（税込）— ${availability}`;
-}
 
 function selectVariant() {
   if (selectedVariantId.value !== String(props.product.id)) {
@@ -90,15 +81,7 @@ function addToCart() {
 
         <div v-if="variants.length > 1" class="mt-6">
           <label for="product-variant" class="mb-2 block text-sm font-semibold text-slate-800">バリエーション</label>
-          <select id="product-variant" v-model="selectedVariantId" class="field" @change="selectVariant">
-            <option
-              v-for="variant in variants"
-              :key="variant.id"
-              :value="String(variant.id)"
-            >
-              {{ variantLabel(variant) }}
-            </option>
-          </select>
+          <ProductVariantSelect v-model="selectedVariantId" :variants="variants" @change="selectVariant" />
         </div>
 
         <p v-if="description" class="mt-6 whitespace-pre-line text-sm leading-7 text-slate-700">{{ description }}</p>

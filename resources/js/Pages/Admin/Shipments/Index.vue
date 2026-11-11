@@ -15,7 +15,10 @@ function reset() { Object.assign(search, { q: '', status: '', scheduled_month: '
     <Head title="発送管理" />
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div><p class="text-xs font-bold tracking-widest text-emerald-700">発送</p><h1 class="mt-3 text-3xl font-bold">発送管理</h1><p class="mt-3 text-sm text-slate-500">発送予定、配送会社、追跡番号と発送状況を管理します。</p></div>
-      <Link href="/admin/shipments/create" class="btn-primary">＋ 発送を登録</Link>
+      <div class="flex flex-wrap gap-3">
+        <Link href="/admin/shipments/csv-imports/create" class="rounded-lg border border-emerald-700 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50">CSVで一括登録</Link>
+        <Link href="/admin/shipments/create" class="btn-primary">＋ 発送を登録</Link>
+      </div>
     </div>
     <div class="my-7 grid gap-3 sm:grid-cols-3"><div v-for="item in [{ label: 'すべて', value: counts.all }, { label: '発送準備中', value: counts.draft }, { label: '発送済み', value: counts.shipped }]" :key="item.label" class="rounded-xl border border-slate-200 bg-white p-5"><p class="text-xs text-slate-500">{{ item.label }}</p><p class="mt-2 text-2xl font-semibold">{{ item.value }}<span class="ml-2 text-xs font-normal text-slate-400">件</span></p></div></div>
     <form @submit.prevent="submit" class="mb-6 grid items-end gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-[1fr_12rem_12rem_auto]">

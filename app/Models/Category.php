@@ -37,7 +37,7 @@ class Category extends Model
                 $effectiveActive = $active && $node->status === 'active';
                 $result[] = [
                     'id' => $node->id, 'name' => $node->name, 'parent_id' => $node->parent_id,
-                    'path' => implode(' → ', $path), 'depth' => count($ancestors),
+                    'path' => implode(' > ', $path), 'depth' => count($ancestors),
                     'sort_order' => $node->sort_order, 'status' => $node->status,
                     'effective_active' => $effectiveActive,
                     'products_count' => $node->products_count ?? 0,

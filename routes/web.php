@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\BackorderController;
 use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\CsvImportController;
 use App\Http\Controllers\Admin\InventoryLotController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\OrderSettingController;
@@ -62,6 +63,21 @@ Route::middleware('auth')->group(function (): void {
 });
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 'verified'])->group(function (): void {
     Route::get('/', [UserController::class, 'index'])->name('dashboard');
+    $registerCsvImportRoutes = function (string $prefix, string $name, string $type): void {
+        Route::prefix($prefix.'/csv-imports')->name($name.'.csv-imports.')->group(function () use ($type): void {
+            Route::get('/', [CsvImportController::class, 'index'])->name('index')->defaults('csv_import_type', $type);
+            Route::get('create', [CsvImportController::class, 'create'])->name('create')->defaults('csv_import_type', $type);
+            Route::post('/', [CsvImportController::class, 'store'])->name('store')->defaults('csv_import_type', $type);
+            Route::get('template', [CsvImportController::class, 'template'])->name('template')->defaults('csv_import_type', $type);
+            Route::get('{csvImport}', [CsvImportController::class, 'show'])->name('show')->defaults('csv_import_type', $type);
+            Route::post('{csvImport}/execute', [CsvImportController::class, 'execute'])->name('execute')->defaults('csv_import_type', $type);
+            Route::get('{csvImport}/errors.csv', [CsvImportController::class, 'errors'])->name('errors')->defaults('csv_import_type', $type);
+        });
+    };
+    $registerCsvImportRoutes('products', 'products', 'products');
+    $registerCsvImportRoutes('purchase-receipts', 'purchase-receipts', 'purchase_receipts');
+    $registerCsvImportRoutes('stock-operations', 'stock-operations', 'stock_operations');
+    $registerCsvImportRoutes('shipments', 'shipments', 'shipments');
     Route::resource('categories', CategoryController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('product-groups', ProductGroupController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update']);

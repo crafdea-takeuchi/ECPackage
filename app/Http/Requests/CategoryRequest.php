@@ -15,7 +15,7 @@ class CategoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100'],
+            'name' => ['required', 'string', 'max:100', 'not_regex:/[>|]/'],
             'parent_id' => ['nullable', 'integer', Rule::exists('categories', 'id')],
             'sort_order' => ['required', 'integer', 'min:0', 'max:999999'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
@@ -28,6 +28,7 @@ class CategoryRequest extends FormRequest
         return [
             'name.required' => '商品分類名を入力してください。',
             'name.max' => '商品分類名は100文字以内で入力してください。',
+            'name.not_regex' => '商品分類名に「>」「|」は使用できません。',
             'parent_id.exists' => '親分類を選び直してください。',
             'sort_order.required' => '表示順を入力してください。',
             'sort_order.integer' => '表示順は0〜999999の整数で入力してください。',

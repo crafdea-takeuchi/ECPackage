@@ -11,7 +11,7 @@ const form = useForm({
   lock_version: props.category?.lock_version ?? 0,
 });
 const selectedParent = computed(() => props.parents.find(parent => parent.id === Number(form.parent_id)));
-const preview = computed(() => [selectedParent.value?.path, form.name.trim() || '商品分類名'].filter(Boolean).join(' → '));
+const preview = computed(() => [selectedParent.value?.path, form.name.trim() || '商品分類名'].filter(Boolean).join(' > '));
 function save() {
   const options = { preserveScroll: true };
   if (props.category) form.put(`/admin/categories/${props.category.id}`, options);
@@ -26,7 +26,7 @@ function save() {
     <form @submit.prevent="save" class="grid items-start gap-6 lg:grid-cols-[2fr_1fr]" novalidate>
       <section class="space-y-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8">
         <div v-if="form.hasErrors" role="alert" class="rounded-lg bg-red-50 p-4 text-sm text-red-700"><p class="font-semibold">入力内容を確認してください。</p><ul class="mt-2 list-inside list-disc"><li v-for="(error, key) in form.errors" :key="key">{{ error }}</li></ul></div>
-        <div><label for="category-name" class="mb-2 block text-sm font-medium">商品分類名 <span class="ml-2 text-xs text-red-600">必須</span></label><input id="category-name" v-model="form.name" class="field" maxlength="100" placeholder="例：ジャガイモ" :aria-invalid="!!form.errors.name" /></div>
+        <div><label for="category-name" class="mb-2 block text-sm font-medium">商品分類名 <span class="ml-2 text-xs text-red-600">必須</span></label><input id="category-name" v-model="form.name" class="field" maxlength="100" placeholder="例：ジャガイモ" :aria-invalid="!!form.errors.name" /><p class="mt-2 text-xs text-slate-500">商品分類名に「&gt;」「|」は使用できません。</p></div>
         <div><label for="parent" class="mb-2 block text-sm font-medium">親分類</label><select id="parent" v-model="form.parent_id" class="field"><option value="">なし（最上位）</option><option v-for="parent in parents" :key="parent.id" :value="parent.id">{{ parent.path }}{{ parent.effective_active ? '' : '（無効な階層）' }}</option></select><p class="mt-2 text-xs leading-6 text-slate-500">変更すると、この商品分類と配下の分類がまとめて移動します。自分自身や配下の分類は選べません。</p></div>
         <div class="grid gap-6 sm:grid-cols-2">
           <div><label for="sort-order" class="mb-2 block text-sm font-medium">表示順</label><input id="sort-order" v-model="form.sort_order" type="number" min="0" max="999999" step="1" class="field" /><p class="mt-2 text-xs text-slate-500">小さい数字から表示します。</p></div>

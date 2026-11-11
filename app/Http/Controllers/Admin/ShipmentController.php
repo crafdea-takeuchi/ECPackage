@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\Shipments\CancelShipment;
 use App\Actions\Shipments\ConfirmShipment;
+use App\Actions\Shipments\SyncShipmentLines;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ShipmentRequest;
 use App\Models\Order;
-use App\Models\OrderLine;
 use App\Models\Shipment;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -66,15 +66,15 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function store(ShipmentRequest $request, ConfirmShipment $confirmShipment): RedirectResponse
+    public function store(ShipmentRequest $request, ConfirmShipment $confirmShipment, SyncShipmentLines $syncShipmentLines): RedirectResponse
     {
-        $shipment = DB::transaction(function () use ($request, $confirmShipment): Shipment {
+        $shipment = DB::transaction(function () use ($request, $confirmShipment, $syncShipmentLines): Shipment {
             $shipment = new Shipment($request->safe()->only(['order_id', 'carrier', 'tracking_number', 'scheduled_on', 'shipped_on', 'notes']));
             $shipment->shipment_number = 'S-'.Str::ulid();
             $shipment->status = 'draft';
             $shipment->created_by = $request->user()->id;
             $shipment->save();
-            $this->syncLines($request, $shipment);
+            $syncShipmentLines->handle($shipment, $request->validated('lines'));
 
             $order = Order::whereKey($shipment->order_id)->lockForUpdate()->firstOrFail();
             if ($order->status === 'confirmed') {
@@ -103,9 +103,9 @@ class ShipmentController extends Controller
         ]);
     }
 
-    public function update(ShipmentRequest $request, Shipment $shipment, ConfirmShipment $confirmShipment): RedirectResponse
+    public function update(ShipmentRequest $request, Shipment $shipment, ConfirmShipment $confirmShipment, SyncShipmentLines $syncShipmentLines): RedirectResponse
     {
-        DB::transaction(function () use ($request, $shipment, $confirmShipment): void {
+        DB::transaction(function () use ($request, $shipment, $confirmShipment, $syncShipmentLines): void {
             $current = Shipment::whereKey($shipment->id)->lockForUpdate()->firstOrFail();
             if ($current->status !== 'draft') {
                 throw ValidationException::withMessages(['status' => '確定または取消済みの発送は変更できません。']);
@@ -119,7 +119,7 @@ class ShipmentController extends Controller
             $current->fill($request->safe()->only(['carrier', 'tracking_number', 'scheduled_on', 'shipped_on', 'notes']));
             $current->lock_version++;
             $current->save();
-            $this->syncLines($request, $current);
+            $syncShipmentLines->handle($current, $request->validated('lines'));
             if ($request->validated('action') === 'ship') {
                 $confirmShipment->handle($current, $request->user());
             }
@@ -134,33 +134,6 @@ class ShipmentController extends Controller
         $cancelShipment->handle($shipment, $request->user(), trim($data['reason']));
 
         return back()->with('status', '発送の下書きを取り消しました。');
-    }
-
-    private function syncLines(ShipmentRequest $request, Shipment $shipment): void
-    {
-        $inputs = $request->validated('lines');
-        $orderLines = OrderLine::where('order_id', $shipment->order_id)
-            ->whereIn('id', collect($inputs)->pluck('order_line_id'))
-            ->lockForUpdate()->get()->keyBy('id');
-        foreach ($inputs as $index => $input) {
-            $orderLine = $orderLines->get((int) $input['order_line_id']);
-            if (! $orderLine) {
-                throw ValidationException::withMessages(["lines.$index.order_line_id" => 'この注文の商品を選択してください。']);
-            }
-            $reserved = $orderLine->shipmentLines()
-                ->where('shipment_id', '!=', $shipment->id)
-                ->whereHas('shipment', fn ($query) => $query->where('status', '!=', 'cancelled'))
-                ->sum('quantity');
-            $remaining = bcsub((string) $orderLine->quantity, (string) $reserved, 4);
-            if (bccomp((string) $input['quantity'], $remaining, 4) === 1) {
-                throw ValidationException::withMessages(["lines.$index.quantity" => "未発送数量（{$remaining} {$orderLine->unit_name}）以内で入力してください。"]);
-            }
-        }
-
-        $shipment->lines()->delete();
-        foreach ($inputs as $input) {
-            $shipment->lines()->create(['order_line_id' => $input['order_line_id'], 'quantity' => $input['quantity']]);
-        }
     }
 
     /** @return array<int, array<string, mixed>> */

@@ -26,6 +26,7 @@ const groups = [
       { href: '/admin/stock-operations', label: '出庫・在庫調整', prefix: '/admin/stock-operations' },
     ],
   },
+
   {
     label: '注文・顧客管理',
     description: '受注の進捗と利用者を管理する',

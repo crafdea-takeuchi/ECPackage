@@ -31,6 +31,13 @@ return [
     'product_image_disk' => env('PRODUCT_IMAGE_DISK', 'product_images'),
 
     'disks' => [
+        'csv_imports' => [
+            'driver' => 'local',
+            'root' => storage_path('app/csv-imports'),
+            'visibility' => 'private',
+            'throw' => true,
+            'serve' => false,
+        ],
         'product_images' => [
             'driver' => 'local',
             'root' => storage_path('app/product-images'),

@@ -14,7 +14,10 @@ function reset() { Object.assign(search, { q: '', operation_type: '', occurred_m
     <Head title="出庫・在庫調整" />
     <div class="flex flex-wrap items-end justify-between gap-4">
       <div><p class="text-xs font-bold tracking-widest text-emerald-700">在庫履歴</p><h1 class="mt-3 text-3xl font-bold">出庫・在庫調整</h1><p class="mt-3 text-sm text-slate-500">ロットからの出庫と、棚卸差異・破損などの在庫調整を履歴として残します。</p></div>
-      <Link href="/admin/stock-operations/create" class="btn-primary">＋ 出庫・在庫調整を登録</Link>
+      <div class="flex flex-wrap gap-3">
+        <Link href="/admin/stock-operations/csv-imports/create" class="rounded-lg border border-emerald-700 bg-white px-4 py-3 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50">CSVで一括登録</Link>
+        <Link href="/admin/stock-operations/create" class="btn-primary">＋ 出庫・在庫調整を登録</Link>
+      </div>
     </div>
     <div class="my-7 grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><div v-for="item in [{ label: 'すべて', value: counts.all }, { label: '出庫', value: counts.outbound }, { label: '在庫調整', value: counts.adjustment }, { label: 'キャンセル戻し', value: counts.cancellation_return }, { label: '取り寄せ引当', value: counts.backorder_allocation }]" :key="item.label" class="rounded-xl border border-slate-200 bg-white p-5"><p class="text-xs text-slate-500">{{ item.label }}</p><p class="mt-2 text-2xl font-semibold">{{ item.value }}<span class="ml-2 text-xs font-normal text-slate-400">件</span></p></div></div>
     <form @submit.prevent="submit" class="mb-6 grid gap-4 rounded-xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">

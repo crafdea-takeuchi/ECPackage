@@ -54,7 +54,7 @@ class CategoryManagementTest extends TestCase
         $this->assertNotSame(999, $root->id);
         $this->post('/admin/categories', $this->input(['name' => '根菜', 'parent_id' => $root->id, 'sort_order' => 20]))->assertSessionHasNoErrors();
         $this->post('/admin/categories', $this->input(['name' => '葉物', 'parent_id' => $root->id, 'sort_order' => 10]))->assertSessionHasNoErrors();
-        $this->get('/admin/categories')->assertInertia(fn (Assert $page) => $page->component('Admin/Categories/Index')->has('categories', 3)->where('categories.0.path', '野菜')->where('categories.1.path', '野菜 → 葉物')->where('categories.2.path', '野菜 → 根菜'));
+        $this->get('/admin/categories')->assertInertia(fn (Assert $page) => $page->component('Admin/Categories/Index')->has('categories', 3)->where('categories.0.path', '野菜')->where('categories.1.path', '野菜 > 葉物')->where('categories.2.path', '野菜 > 根菜'));
     }
 
     public function test_move_and_rename_preserve_product_links_and_subtree(): void
@@ -68,7 +68,7 @@ class CategoryManagementTest extends TestCase
         $this->actingAs(User::factory()->admin()->create())->put('/admin/categories/'.$potato->id, $this->input(['name' => 'じゃがいも', 'parent_id' => $newParent->id, 'lock_version' => 0]))->assertRedirect('/admin/categories')->assertSessionHasNoErrors();
         $this->assertDatabaseHas('category_product', ['category_id' => $child->id, 'product_id' => $product->id]);
         $this->assertDatabaseHas('categories', ['id' => $potato->id, 'parent_id' => $newParent->id, 'name' => 'じゃがいも', 'lock_version' => 1]);
-        $this->get('/admin/categories')->assertInertia(fn (Assert $page) => $page->where('categories.3.path', '野菜 → 根菜 → じゃがいも → 男爵'));
+        $this->get('/admin/categories')->assertInertia(fn (Assert $page) => $page->where('categories.3.path', '野菜 > 根菜 > じゃがいも > 男爵'));
         $this->assertSame($product->name, $product->fresh()->name);
         $this->put('/admin/categories/'.$potato->id, $this->input(['name' => 'じゃがいも', 'parent_id' => null, 'lock_version' => 1]))->assertSessionHasNoErrors();
         $this->assertNull($potato->fresh()->parent_id);
@@ -116,6 +116,46 @@ class CategoryManagementTest extends TestCase
     {
         $this->actingAs(User::factory()->admin()->create())->post('/admin/categories', $this->input([$field => $value]))->assertSessionHasErrors([$field => $message]);
         $this->assertDatabaseCount('categories', 0);
+    }
+
+    #[TestWith(['親>子'])]
+    #[TestWith(['分類|別分類'])]
+    public function test_reserved_characters_are_rejected_on_create_and_update(string $name): void
+    {
+        $category = Category::factory()->create(['name' => '変更前']);
+        $this->actingAs(User::factory()->admin()->create());
+        $message = '商品分類名に「>」「|」は使用できません。';
+
+        $this->post('/admin/categories', $this->input(['name' => $name]))
+            ->assertSessionHasErrors(['name' => $message]);
+        $this->put('/admin/categories/'.$category->id, $this->input(['name' => $name, 'lock_version' => 0]))
+            ->assertSessionHasErrors(['name' => $message]);
+
+        $this->assertDatabaseCount('categories', 1);
+        $this->assertSame('変更前', $category->fresh()->name);
+        $this->assertSame(0, $category->fresh()->lock_version);
+    }
+
+    public function test_arrow_and_slash_are_allowed_in_category_names(): void
+    {
+        $this->actingAs(User::factory()->admin()->create());
+
+        $this->post('/admin/categories', $this->input(['name' => '各種洗浄/消臭剤']))->assertSessionHasNoErrors();
+        $category = Category::firstOrFail();
+        $this->put('/admin/categories/'.$category->id, $this->input(['name' => '変更前 → 変更後', 'lock_version' => 0]))->assertSessionHasNoErrors();
+
+        $this->assertSame('変更前 → 変更後', $category->fresh()->name);
+    }
+
+    public function test_product_pages_receive_category_paths_with_spaced_greater_than_separator(): void
+    {
+        $root = Category::factory()->create(['name' => 'オーラルケア']);
+        $child = Category::factory()->create(['name' => '歯ブラシ', 'parent_id' => $root->id]);
+        $this->actingAs(User::factory()->admin()->create());
+
+        $this->get('/admin/products')->assertOk()->assertInertia(fn (Assert $page) => $page->where('categories.1.path', 'オーラルケア > 歯ブラシ'));
+        $this->get('/admin/products/create')->assertOk()->assertInertia(fn (Assert $page) => $page->where('categories.1.path', 'オーラルケア > 歯ブラシ'));
+        $this->get('/admin/categories/'.$child->id.'/edit')->assertOk()->assertInertia(fn (Assert $page) => $page->where('parents.0.path', 'オーラルケア'));
     }
 
     public function test_long_name_is_rejected_and_missing_category_returns_not_found(): void

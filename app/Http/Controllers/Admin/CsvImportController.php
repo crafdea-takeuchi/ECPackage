@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Inventory\ReceiptExpiration;
 use App\Enums\CsvImportStatus;
 use App\Exceptions\CsvImportFormatException;
 use App\Http\Controllers\Controller;
@@ -93,6 +94,16 @@ class CsvImportController extends Controller
             } catch (CsvImportFormatException) {
                 $preview = null;
             }
+        }
+
+        if ($context['type'] === 'purchase_receipts' && $preview !== null) {
+            $preview['rows'] = array_map(function (array $row): array {
+                if (isset($row['data']['期限種別'])) {
+                    $row['data']['期限種別'] = ReceiptExpiration::displayType($row['data']['期限種別']);
+                }
+
+                return $row;
+            }, $preview['rows']);
         }
 
         return Inertia::render($context['page_prefix'].'/Show', [
@@ -214,7 +225,7 @@ class CsvImportController extends Controller
                     '同じ入庫番号の行は、1件の入庫伝票の複数明細としてまとめます。',
                     'CSV取込では下書き入庫を作成します。在庫へ反映するには、取込後に入庫画面で内容を確認して確定してください。',
                     '仕入先コードと商品コードは、登録済みの有効な仕入商品設定と一致する必要があります。',
-                    '期限日は任意項目です。入力する場合は製造日以降の日付を指定してください。',
+                    '期限種別と期限日はセットで入力してください。両方が空欄の場合は「期限なし」となります。同じ入庫番号内でも明細ごとに異なる期限を指定できます。',
                 ],
             ],
             'stock_operations' => [

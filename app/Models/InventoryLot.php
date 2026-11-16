@@ -15,7 +15,7 @@ class InventoryLot extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['product_id', 'supplier_id', 'purchase_receipt_line_id', 'lot_number', 'received_on', 'manufactured_on', 'expires_on', 'initial_quantity', 'current_quantity', 'unit_purchase_price', 'status'];
+    protected $fillable = ['product_id', 'supplier_id', 'purchase_receipt_line_id', 'lot_number', 'received_on', 'manufactured_on', 'expires_on', 'expiration_type', 'initial_quantity', 'current_quantity', 'unit_purchase_price', 'status'];
 
     protected function casts(): array
     {

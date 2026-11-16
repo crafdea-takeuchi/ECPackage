@@ -84,6 +84,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::resource('suppliers', SupplierController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('purchase-receipts', PurchaseReceiptController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::get('inventory-lots', [InventoryLotController::class, 'index'])->name('inventory-lots.index');
+    Route::post('inventory-lots/dispose', [InventoryLotController::class, 'dispose'])->name('inventory-lots.dispose');
     Route::resource('stock-operations', StockOperationController::class)->only(['index', 'create', 'store', 'show']);
     Route::resource('orders', OrderController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('shipments', ShipmentController::class)->only(['index', 'create', 'store', 'edit', 'update']);

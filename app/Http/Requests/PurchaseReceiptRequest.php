@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\Inventory\ReceiptExpiration;
 use App\Models\Product;
 use App\Models\ProductSupplier;
+use App\Models\PurchaseReceiptLine;
 use App\Models\Supplier;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -23,10 +25,17 @@ class PurchaseReceiptRequest extends FormRequest
                 return $line;
             }
             foreach (['lot_number', 'manufactured_on', 'expires_on', 'quantity', 'unit_purchase_price'] as $field) {
+                if (in_array($field, ['manufactured_on', 'expires_on'], true) && ! is_scalar($line[$field] ?? null) && ($line[$field] ?? null) !== null) {
+                    continue;
+                }
                 $line[$field] = trim((string) ($line[$field] ?? ''));
                 if ($line[$field] === '' && in_array($field, ['manufactured_on', 'expires_on'], true)) {
                     $line[$field] = null;
                 }
+            }
+
+            if (is_string($line['expiration_type'] ?? null)) {
+                $line['expiration_type'] = trim($line['expiration_type']) ?: null;
             }
 
             return $line;
@@ -48,8 +57,7 @@ class PurchaseReceiptRequest extends FormRequest
             'lines.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereIn('registration_status', ['provisional', 'confirmed'])],
             'lines.*.product_supplier_id' => ['required', 'integer', Rule::exists('product_suppliers', 'id')],
             'lines.*.lot_number' => ['required', 'string', 'max:100'],
-            'lines.*.manufactured_on' => ['nullable', 'date_format:Y-m-d'],
-            'lines.*.expires_on' => ['nullable', 'date_format:Y-m-d'],
+            ...ReceiptExpiration::rules('lines.*.', allowUntypedDate: true),
             'lines.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999999999.9999', 'decimal:0,4'],
             'lines.*.unit_purchase_price' => ['required', 'numeric', 'min:0', 'max:999999999999999.9999', 'decimal:0,4'],
         ];
@@ -73,6 +81,9 @@ class PurchaseReceiptRequest extends FormRequest
             $products = Product::with('unit:id,quantity_scale')->whereIn('id', collect($lines)->pluck('product_id')->filter())->get()->keyBy('id');
             $settings = ProductSupplier::whereIn('id', collect($lines)->pluck('product_supplier_id')->filter())->get()->keyBy('id');
             $seen = [];
+            $existingLines = $receipt
+                ? PurchaseReceiptLine::where('purchase_receipt_id', $receipt->id)->get()->keyBy('id')
+                : collect();
 
             foreach ($lines as $index => $line) {
                 if (! is_array($line)) {
@@ -98,7 +109,14 @@ class PurchaseReceiptRequest extends FormRequest
 
                 $manufactured = $line['manufactured_on'] ?? null;
                 $expires = $line['expires_on'] ?? null;
-                if ($manufactured && $expires && $expires < $manufactured) {
+                $type = $line['expiration_type'] ?? null;
+                $existing = $existingLines->get($line['id'] ?? null);
+                $unchangedLegacyDate = $existing && $existing->expiration_type === null
+                    && $existing->expires_on?->format('Y-m-d') === $expires;
+                if ($expires && ! $type && ! $unchangedLegacyDate) {
+                    $validator->errors()->add("lines.$index.expiration_type", '期限日を入力する場合は、賞味期限または消費期限を選択してください。');
+                }
+                if (ReceiptExpiration::isBeforeManufacture($manufactured, $expires)) {
                     $validator->errors()->add("lines.$index.expires_on", '期限日は製造日以降の日付を入力してください。');
                 }
 
@@ -131,6 +149,9 @@ class PurchaseReceiptRequest extends FormRequest
             'lines.*.lot_number.required' => 'ロット番号を入力してください。',
             'lines.*.lot_number.max' => 'ロット番号は100文字以内で入力してください。',
             'lines.*.manufactured_on.date_format' => '製造日を正しい日付で入力してください。',
+            'lines.*.expiration_type.in' => '期限種別は「期限なし」「賞味期限」「消費期限」から選択してください。',
+            'lines.*.expiration_type.string' => '期限種別を選び直してください。',
+            'lines.*.expires_on.required_with' => '賞味期限または消費期限を選択した場合は、期限日を入力してください。',
             'lines.*.expires_on.date_format' => '期限日を正しい日付で入力してください。',
             'lines.*.quantity.required' => '入庫数量を入力してください。',
             'lines.*.quantity.numeric' => '入庫数量は数値で入力してください。',

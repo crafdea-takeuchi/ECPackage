@@ -42,7 +42,8 @@ return [
             ['name' => '入庫数量', 'requirement' => '必須', 'description' => '0より大きい数値を入力します。小数桁数は商品の単位設定に従います。', 'example' => '10'],
             ['name' => '仕入単価', 'requirement' => '必須', 'description' => '0以上、整数15桁・小数4桁以内の単価を入力します。', 'example' => '180.5'],
             ['name' => '製造日', 'requirement' => '任意', 'description' => 'YYYY-MM-DD形式で入力します。期限日を入力する場合は期限日以前の日付にしてください。', 'example' => '2026-11-01'],
-            ['name' => '期限日', 'requirement' => '任意', 'description' => 'YYYY-MM-DD形式で入力します。製造日以降の日付を指定してください。', 'example' => '2027-05-01'],
+            ['name' => '期限種別', 'requirement' => '条件付き', 'description' => '期限がある場合は「賞味期限」または「消費期限」を入力します。best_before、use_byも使用できます。期限日とセットで入力してください。両方が空欄の場合は「期限なし」となります。', 'example' => '賞味期限'],
+            ['name' => '期限日', 'requirement' => '条件付き', 'description' => '期限種別を入力した場合に、YYYY-MM-DD形式で入力します。製造日がある場合は、製造日以降の日付を入力してください。', 'example' => '2027-05-31'],
             ['name' => '備考', 'requirement' => '任意', 'description' => '入庫伝票の備考です。同じ入庫番号では同じ内容に統一し、2000文字以内で入力します。', 'example' => '午前便'],
         ],
         'stock_operations' => [

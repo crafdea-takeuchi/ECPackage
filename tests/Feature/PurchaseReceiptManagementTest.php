@@ -41,7 +41,7 @@ class PurchaseReceiptManagementTest extends TestCase
                 'product_supplier_id' => $setting->id,
                 'lot_number' => 'LOT-202610-A',
                 'manufactured_on' => '2026-10-01',
-                'expires_on' => '2026-12-31',
+                'expires_on' => '2026-12-31', 'expiration_type' => 'best_before',
                 'quantity' => '10',
                 'unit_purchase_price' => '180.5000',
             ]],
@@ -100,7 +100,7 @@ class PurchaseReceiptManagementTest extends TestCase
             'product_supplier_id' => $setting->id,
             'lot_number' => 'LOT-KG-001',
             'manufactured_on' => null,
-            'expires_on' => null,
+            'expires_on' => null, 'expiration_type' => null,
             'quantity' => '12.345',
             'unit_purchase_price' => '180.5000',
         ]]]);
@@ -144,7 +144,7 @@ class PurchaseReceiptManagementTest extends TestCase
 
         $fresh = $this->input($supplier, $product, $setting, ['lock_version' => 1, 'lines' => [[
             'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'NEW',
-            'manufactured_on' => null, 'expires_on' => null, 'quantity' => '3', 'unit_purchase_price' => '200',
+            'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '3', 'unit_purchase_price' => '200',
         ]]]);
         $this->put('/admin/purchase-receipts/'.$receipt->id, $fresh)->assertSessionHasNoErrors();
 
@@ -163,7 +163,7 @@ class PurchaseReceiptManagementTest extends TestCase
 
         $change = $this->input($supplier, $product, $setting, ['action' => 'post', 'lock_version' => $receipt->lock_version, 'lines' => [[
             'id' => $line->id, 'product_id' => $product->id, 'product_supplier_id' => $setting->id,
-            'lot_number' => 'CHANGED', 'manufactured_on' => null, 'expires_on' => null, 'quantity' => '20', 'unit_purchase_price' => '180.5',
+            'lot_number' => 'CHANGED', 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '20', 'unit_purchase_price' => '180.5',
         ]]]);
         $this->put('/admin/purchase-receipts/'.$receipt->id, $change)->assertSessionHasErrors('status');
 
@@ -180,13 +180,13 @@ class PurchaseReceiptManagementTest extends TestCase
 
         $mismatch = $this->input($supplier, $product, $setting, ['lines' => [[
             'product_id' => $otherProduct->id, 'product_supplier_id' => $otherSetting->id, 'lot_number' => 'X',
-            'manufactured_on' => null, 'expires_on' => null, 'quantity' => '1', 'unit_purchase_price' => '10',
+            'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '1', 'unit_purchase_price' => '10',
         ]]]);
         $this->actingAs($admin)->post('/admin/purchase-receipts', $mismatch)->assertSessionHasErrors('lines.0.product_id');
 
         $bad = $this->input($supplier, $product, $setting, ['lines' => [
             ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'SAME', 'manufactured_on' => '2026-10-10', 'expires_on' => '2026-10-01', 'quantity' => '1.5', 'unit_purchase_price' => '10'],
-            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'same', 'manufactured_on' => null, 'expires_on' => null, 'quantity' => '1', 'unit_purchase_price' => '10'],
+            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'same', 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '1', 'unit_purchase_price' => '10'],
         ]]);
         $this->post('/admin/purchase-receipts', $bad)->assertSessionHasErrors(['lines.0.expires_on', 'lines.0.quantity', 'lines.1.lot_number']);
 
@@ -220,7 +220,7 @@ class PurchaseReceiptManagementTest extends TestCase
         $this->actingAs($admin)->post('/admin/purchase-receipts', $this->input($supplier, $product, $setting, [
             'action' => 'post', 'received_on' => '2026-10-15', 'lines' => [[
                 'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'VISIBLE-LOT',
-                'manufactured_on' => null, 'expires_on' => null, 'quantity' => '12.345', 'unit_purchase_price' => '180.5',
+                'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '12.345', 'unit_purchase_price' => '180.5',
             ]],
         ]))->assertSessionHasNoErrors();
 

@@ -15,7 +15,7 @@ class PurchaseReceiptLine extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['line_number', 'product_id', 'product_supplier_id', 'lot_number', 'manufactured_on', 'expires_on', 'quantity', 'unit_purchase_price', 'purchase_amount'];
+    protected $fillable = ['line_number', 'product_id', 'product_supplier_id', 'lot_number', 'manufactured_on', 'expires_on', 'expiration_type', 'quantity', 'unit_purchase_price', 'purchase_amount'];
 
     protected function casts(): array
     {

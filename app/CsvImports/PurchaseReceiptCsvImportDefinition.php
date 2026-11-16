@@ -2,16 +2,17 @@
 
 namespace App\CsvImports;
 
+use App\Actions\Inventory\ReceiptExpiration;
 use App\Contracts\CsvImportDefinition;
+use App\Exceptions\CsvImportFormatException;
 use App\Models\CsvImport;
 use App\Models\Product;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseReceipt;
 use App\Models\Supplier;
 use App\Models\User;
-use DateTimeImmutable;
 use Illuminate\Support\Collection;
-use LogicException;
+use Illuminate\Support\Facades\Validator;
 
 class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
 {
@@ -30,6 +31,8 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
     private const UNIT_PRICE = '仕入単価';
 
     private const MANUFACTURED_ON = '製造日';
+
+    private const EXPIRATION_TYPE = '期限種別';
 
     private const EXPIRES_ON = '期限日';
 
@@ -67,6 +70,7 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
             self::QUANTITY,
             self::UNIT_PRICE,
             self::MANUFACTURED_ON,
+            self::EXPIRATION_TYPE,
             self::EXPIRES_ON,
             self::NOTES,
         ];
@@ -82,8 +86,6 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
         $lotNumber = $this->value($row, self::LOT_NUMBER);
         $quantity = $this->value($row, self::QUANTITY);
         $unitPrice = $this->value($row, self::UNIT_PRICE);
-        $manufacturedOn = $this->value($row, self::MANUFACTURED_ON);
-        $expiresOn = $this->value($row, self::EXPIRES_ON);
         $notes = $this->value($row, self::NOTES);
 
         if ($receiptNumber === '') {
@@ -136,15 +138,7 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
             $this->error($errors, self::QUANTITY, '入庫金額が上限を超えています。数量または仕入単価を見直してください。');
         }
 
-        if ($manufacturedOn !== '' && ! $this->isDate($manufacturedOn)) {
-            $this->error($errors, self::MANUFACTURED_ON, '製造日はYYYY-MM-DD形式で入力してください。');
-        }
-        if ($expiresOn !== '' && ! $this->isDate($expiresOn)) {
-            $this->error($errors, self::EXPIRES_ON, '期限日はYYYY-MM-DD形式で入力してください。');
-        }
-        if ($this->isDate($manufacturedOn) && $this->isDate($expiresOn) && $expiresOn < $manufacturedOn) {
-            $this->error($errors, self::EXPIRES_ON, '期限日は製造日以降の日付を入力してください。');
-        }
+        array_push($errors, ...$this->expirationErrors($row));
         if (mb_strlen($notes) > 2000) {
             $this->error($errors, self::NOTES, '備考は2000文字以内で入力してください。');
         }
@@ -157,6 +151,17 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
 
     public function importRows(array $rows, User $user, CsvImport $import): int
     {
+        foreach ($rows as $index => $row) {
+            if (! array_key_exists(self::EXPIRATION_TYPE, $row)) {
+                throw new CsvImportFormatException('必須ヘッダー「期限種別」がありません。');
+            }
+            $errors = $this->expirationErrors($row);
+            if ($errors !== []) {
+                $error = $errors[0];
+                throw new CsvImportFormatException('CSV'.($index + 2).'行目「'.$error['column'].'」: '.$error['message']);
+            }
+        }
+
         collect($rows)
             ->groupBy(fn (array $row): string => $this->value($row, self::RECEIPT_NUMBER))
             ->each(function (Collection $receiptRows, string $receiptNumber) use ($user): void {
@@ -164,7 +169,7 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
                 $supplier = $this->supplierMap()->get(strtoupper($this->value($first, self::SUPPLIER_CODE)));
 
                 if ($supplier === null || PurchaseReceipt::where('receipt_number', $receiptNumber)->exists()) {
-                    throw new LogicException("入庫番号「{$receiptNumber}」の登録条件が検証時から変更されています。");
+                    throw new CsvImportFormatException("入庫番号「{$receiptNumber}」の登録条件が検証時から変更されています。");
                 }
 
                 $receipt = new PurchaseReceipt([
@@ -184,7 +189,7 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
                         : $this->purchaseSettingMap()->get($this->settingKey($supplier->id, $product->id));
 
                     if ($product === null || $setting === null) {
-                        throw new LogicException("入庫番号「{$receiptNumber}」の商品設定が検証時から変更されています。");
+                        throw new CsvImportFormatException("入庫番号「{$receiptNumber}」の商品設定が検証時から変更されています。");
                     }
 
                     $quantity = $this->value($row, self::QUANTITY);
@@ -196,6 +201,7 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
                         'lot_number' => $this->value($row, self::LOT_NUMBER),
                         'manufactured_on' => $this->nullable($this->value($row, self::MANUFACTURED_ON)),
                         'expires_on' => $this->nullable($this->value($row, self::EXPIRES_ON)),
+                        'expiration_type' => ReceiptExpiration::normalizeType($this->value($row, self::EXPIRATION_TYPE)),
                         'quantity' => $quantity,
                         'unit_purchase_price' => $unitPrice,
                         'purchase_amount' => bcmul($quantity, $unitPrice, 4),
@@ -295,15 +301,32 @@ class PurchaseReceiptCsvImportDefinition implements CsvImportDefinition
         $this->seenLines[$key] = true;
     }
 
-    private function isDate(string $value): bool
+    /** @return list<array{column: string, message: string}> */
+    private function expirationErrors(array $row): array
     {
-        if ($value === '') {
-            return false;
+        $values = [
+            'manufactured_on' => $this->nullable($this->value($row, self::MANUFACTURED_ON)),
+            'expiration_type' => ReceiptExpiration::normalizeType($this->value($row, self::EXPIRATION_TYPE)),
+            'expires_on' => $this->nullable($this->value($row, self::EXPIRES_ON)),
+        ];
+        $validator = Validator::make($values, ReceiptExpiration::rules(), ReceiptExpiration::messages());
+        $columns = ['manufactured_on' => self::MANUFACTURED_ON, 'expiration_type' => self::EXPIRATION_TYPE, 'expires_on' => self::EXPIRES_ON];
+        $errors = [];
+        foreach ($validator->errors()->messages() as $field => $messages) {
+            foreach ($messages as $message) {
+                $this->error($errors, $columns[$field], $message);
+            }
+        }
+        if (ReceiptExpiration::isBeforeManufacture($values['manufactured_on'], $values['expires_on'])) {
+            $this->error($errors, self::EXPIRES_ON, '期限日は製造日以降の日付を入力してください。');
         }
 
-        $date = DateTimeImmutable::createFromFormat('!Y-m-d', $value);
+        return $errors;
+    }
 
-        return $date !== false && $date->format('Y-m-d') === $value;
+    private function isDate(string $value): bool
+    {
+        return ReceiptExpiration::isDate($value);
     }
 
     private function isPositiveDecimal(string $value): bool

@@ -38,6 +38,11 @@ const groups = [
       { href: '/admin', label: 'アカウント', exact: true },
     ],
   },
+  {
+    label: '設定',
+    description: '注文と各種設定を管理する',
+    links: [{ href: page.props.adminSettingsUrl, label: '各種設定', prefix: page.props.adminSettingsUrl, icon: 'settings' }],
+  },
 ];
 
 function isActive(link) {

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\BackorderController;
+use App\Http\Controllers\Admin\BankTransferSettingController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CsvImportController;
 use App\Http\Controllers\Admin\InventoryLotController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Admin\OrderSettingController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductGroupController;
 use App\Http\Controllers\Admin\PurchaseReceiptController;
+use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShipmentController;
 use App\Http\Controllers\Admin\StockOperationController;
 use App\Http\Controllers\Admin\SupplierController;
@@ -93,6 +95,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::post('backorders/allocate', [BackorderController::class, 'allocate'])->name('backorders.allocate');
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
+    Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('settings/bank-transfer', [BankTransferSettingController::class, 'edit'])->name('settings.bank-transfer.edit');
+    Route::put('settings/bank-transfer', [BankTransferSettingController::class, 'update'])->name('settings.bank-transfer.update');
     Route::get('order-settings', [OrderSettingController::class, 'edit'])->name('order-settings.edit');
     Route::put('order-settings', [OrderSettingController::class, 'update'])->name('order-settings.update');
     Route::inertia('/users/create', 'Admin/CreateUser')->name('users.create');

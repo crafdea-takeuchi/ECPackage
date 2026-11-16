@@ -83,6 +83,7 @@ function linkClasses(link) {
             :class="linkClasses(link)"
             @click="emit('close')"
           >
+            <svg v-if="link.icon === 'settings'" aria-hidden="true" class="mr-2 inline-block size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3" /><path d="m9 3-1 3-3 1-2 3 2 2-1 3 3 2 1 3h4l1-3 3-1 2-3-2-2 1-3-3-2-1-3z" /></svg>
             {{ link.label }}
           </Link>
         </div>

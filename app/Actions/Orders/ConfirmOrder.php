@@ -6,6 +6,7 @@ use App\Actions\Inventory\RecordStockOperation;
 use App\Models\InventoryLot;
 use App\Models\Order;
 use App\Models\OrderLine;
+use App\Models\OrderSetting;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -21,6 +22,16 @@ class ConfirmOrder
             $current = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             if ($current->status !== 'draft' || $current->stock_operation_id !== null) {
                 throw ValidationException::withMessages(['status' => 'この注文はすでに確定されています。']);
+            }
+
+            if ($current->payment_method === 'bank_transfer') {
+                $details = OrderSetting::whereKey(1)->sharedLock()->first()?->bank_transfer;
+                if (! BankTransferDetails::registered($details)) {
+                    throw ValidationException::withMessages(['payment_method' => '振込先が設定されていないため、銀行振込の注文を確定できません。管理者へお問い合わせください。']);
+                }
+                if ($current->bank_transfer_snapshot === null) {
+                    $current->bank_transfer_snapshot = array_intersect_key($details, BankTransferDetails::FIELDS);
+                }
             }
 
             $stockInputs = [];

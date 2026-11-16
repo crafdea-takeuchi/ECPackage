@@ -25,6 +25,9 @@ class CustomerOrderController extends Controller
     {
         abort_if($request->user()->isAdmin(), 403);
         abort_unless($order->customer_id === $request->user()->id, 404);
+        if ($order->payment_method === 'bank_transfer') {
+            $order->makeVisible('bank_transfer_snapshot');
+        }
         $order->load(['lines.components', 'lines.backorders', 'shipments' => fn ($query) => $query->where('status', 'shipped')->with('lines')]);
         $amounts = $calculateTaxes->handle($order->lines->map(fn (OrderLine $line): array => [
             'tax_rate_name' => $line->tax_rate_name,

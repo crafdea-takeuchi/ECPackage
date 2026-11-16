@@ -36,6 +36,8 @@ class Order extends Model
         'shipping_address_line1', 'shipping_address_line2', 'payment_method',
     ];
 
+    protected $hidden = ['bank_transfer_snapshot'];
+
     protected function casts(): array
     {
         return [
@@ -47,6 +49,7 @@ class Order extends Model
             'backorder_completed_at' => 'datetime',
             'cancelled_at' => 'datetime',
             'lock_version' => 'integer',
+            'bank_transfer_snapshot' => 'encrypted:array',
         ];
     }
 

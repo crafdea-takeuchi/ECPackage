@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Shop;
 
 use App\Actions\Cart\LoadCart;
+use App\Actions\Orders\BankTransferDetails;
 use App\Actions\Orders\CalculateTaxes;
 use App\Actions\Orders\PlaceCustomerOrder;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CheckoutRequest;
 use App\Models\Order;
+use App\Models\OrderSetting;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,7 +30,13 @@ class CheckoutController extends Controller
             'amount' => $item['amount'],
         ]));
 
+        $bank = OrderSetting::find(1)?->bank_transfer;
+        $bankTransfer = BankTransferDetails::registered($bank)
+            ? array_intersect_key($bank, array_flip(['bank_name', 'branch_name', 'account_type', 'account_number', 'account_holder_kana', 'instructions']))
+            : null;
+
         return Inertia::render('Checkout/Create', [
+            'bankTransfer' => $bankTransfer,
             'items' => $cart['items'],
             'subtotal' => $amounts['subtotal'],
             'taxes' => $amounts['taxes'],

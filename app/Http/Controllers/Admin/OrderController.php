@@ -65,6 +65,9 @@ class OrderController extends Controller
 
     public function edit(Order $order, OrderTaxDisplay $orderTaxDisplay): Response
     {
+        if ($order->payment_method === 'bank_transfer') {
+            $order->makeVisible('bank_transfer_snapshot');
+        }
         $order->load(['customer:id,name,email', 'lines.components', 'lines.backorders', 'lines.allocations.inventoryLot:id,lot_number', 'lines.allocations.orderLineComponent:id,component_name,unit_name', 'stockOperation:id,operation_number', 'cancellationStockOperation:id,operation_number', 'shipments.lines']);
 
         $taxDisplay = $orderTaxDisplay->handle($order);

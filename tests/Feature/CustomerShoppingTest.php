@@ -16,6 +16,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use PHPUnit\Framework\Attributes\TestWith;
+use Tests\Fixtures\BankTransfer;
 use Tests\TestCase;
 
 class CustomerShoppingTest extends TestCase
@@ -178,6 +179,7 @@ class CustomerShoppingTest extends TestCase
 
     public function test_customer_checkout_creates_confirmed_order_uses_current_price_and_clears_cart(): void
     {
+        BankTransfer::configure();
         $context = $this->sellableProduct(quantity: '10');
         $customer = User::factory()->create(['name' => '購入者']);
         $context['product']->update(['default_sale_price' => '450.2500']);
@@ -214,6 +216,7 @@ class CustomerShoppingTest extends TestCase
 
     public function test_checkout_adds_taxes_per_tax_rate_and_saves_them_on_the_order(): void
     {
+        BankTransfer::configure();
         $reduced = TaxRate::factory()->create(['code' => 'reduced', 'name' => '軽減税率', 'rate' => '8.00']);
         $standard = TaxRate::factory()->create(['code' => 'standard', 'name' => '標準税率', 'rate' => '10.00']);
         $food = $this->sellableProduct('TAX-8', productOverrides: ['tax_rate_id' => $reduced->id]);
@@ -258,6 +261,7 @@ class CustomerShoppingTest extends TestCase
 
     public function test_checkout_stock_change_rolls_back_order_and_preserves_cart(): void
     {
+        BankTransfer::configure();
         $context = $this->sellableProduct(quantity: '5');
         $customer = User::factory()->create();
         $cart = [$context['product']->id => '5'];
@@ -269,6 +273,25 @@ class CustomerShoppingTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
         $this->assertSame('2.0000', $context['lot']->fresh()->current_quantity);
         $this->assertSame($cart, session('cart'));
+    }
+
+    public function test_checkout_provides_only_registered_bank_display_fields_without_creating_order(): void
+    {
+        $bank = BankTransfer::configure();
+        $context = $this->sellableProduct();
+        $this->actingAs(User::factory()->create())->withSession(['cart' => [$context['product']->id => '1']])->get('/checkout')
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('bankTransfer', array_intersect_key($bank, array_flip(['bank_name', 'branch_name', 'account_type', 'account_number', 'account_holder_kana', 'instructions'])))
+                ->missing('bankTransfer.bank_code')->missing('bankTransfer.branch_code')->missing('bankTransfer.account_holder'));
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertSame('10.0000', $context['lot']->fresh()->current_quantity);
+    }
+
+    public function test_checkout_has_no_bank_preview_when_unregistered(): void
+    {
+        $context = $this->sellableProduct();
+        $this->actingAs(User::factory()->create())->withSession(['cart' => [$context['product']->id => '1']])->get('/checkout')
+            ->assertInertia(fn (Assert $page) => $page->where('bankTransfer', null));
     }
 
     public function test_checkout_page_provides_prefectures_and_customer_name(): void
@@ -287,6 +310,7 @@ class CustomerShoppingTest extends TestCase
 
     public function test_checkout_normalizes_full_width_and_unhyphenated_postal_code(): void
     {
+        BankTransfer::configure();
         $context = $this->sellableProduct();
 
         $this->actingAs(User::factory()->create())->withSession(['cart' => [$context['product']->id => '1']])

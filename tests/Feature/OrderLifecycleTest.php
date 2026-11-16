@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Notifications\BackorderReady;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Tests\Fixtures\BankTransfer;
 use Tests\TestCase;
 
 class OrderLifecycleTest extends TestCase
@@ -90,6 +91,7 @@ class OrderLifecycleTest extends TestCase
 
     public function test_customer_can_order_more_than_stock_when_product_allows_backorders(): void
     {
+        BankTransfer::configure();
         $context = $this->context('2', 'backorder');
 
         $this->actingAs($context['customer'])->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '5'])->assertSessionHasNoErrors();
@@ -104,6 +106,7 @@ class OrderLifecycleTest extends TestCase
 
     public function test_posting_receipt_automatically_allocates_oldest_backorder_and_notifies_customer(): void
     {
+        BankTransfer::configure();
         Notification::fake();
         $context = $this->context('2', 'backorder');
         $this->actingAs($context['customer'])->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '5'])->assertSessionHasNoErrors();

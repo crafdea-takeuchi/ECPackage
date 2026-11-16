@@ -61,6 +61,25 @@ class BankTransferOrderTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->component('Admin/Orders/Form')->where('order.bank_transfer_snapshot', BankTransfer::details()));
     }
 
+    public function test_cod_fee_configuration_is_not_applied_to_bank_transfer_orders(): void
+    {
+        $context = $this->context();
+        $this->actingAs(User::factory()->admin()->create())->put(route('admin.settings.fees.update'), ['cash_on_delivery_fee' => 330])
+            ->assertSessionHasNoErrors();
+        $this->actingAs($context['customer'])->withSession(['cart' => [$context['product']->id => '2']])
+            ->post('/checkout', $this->checkoutInput())->assertSessionHasNoErrors();
+        $order = Order::sole();
+        $this->assertSame('bank_transfer', $order->payment_method);
+        $this->assertSame('200.0000', $order->subtotal);
+        $this->assertSame('0.0000', $order->tax_amount);
+        $this->assertSame('200.0000', $order->total);
+        $this->assertSame('330.0000', OrderSetting::current()->cash_on_delivery_fee);
+        $this->withSession(['cart' => [$context['product']->id => '1']])
+            ->post('/checkout', [...$this->checkoutInput(), 'payment_method' => 'cash_on_delivery'])
+            ->assertSessionHasErrors('payment_method');
+        $this->assertDatabaseCount('orders', 1);
+    }
+
     public function test_unregistered_bank_blocks_confirmation_and_keeps_cart_stock_and_database_unchanged(): void
     {
         $context = $this->context(false);

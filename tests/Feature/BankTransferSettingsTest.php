@@ -17,12 +17,14 @@ class BankTransferSettingsTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
-    public function test_settings_hub_only_exposes_bank_card_and_preserves_existing_order_settings_route(): void
+    public function test_settings_hub_exposes_bank_and_fee_cards_and_preserves_existing_order_settings_route(): void
     {
         $this->actingAs(User::factory()->admin()->create())->get(route('admin.settings.index'))
             ->assertInertia(fn (Assert $page) => $page->component('Admin/Settings/Index')
-                ->has('cards', 1)
+                ->has('cards', 2)
                 ->where('cards.0.title', '振込先設定')
+                ->where('cards.1.title', '手数料設定')
+                ->where('cards.1.href', route('admin.settings.fees.edit', [], false))
                 ->where('cards.0.description', '銀行振込でお客様へ案内する振込先を登録します。')
                 ->where('cards.0.href', route('admin.settings.bank-transfer.edit', [], false))
                 ->where('cards.0.account_number', null)

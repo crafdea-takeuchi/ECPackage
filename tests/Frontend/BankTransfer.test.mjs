@@ -10,6 +10,7 @@ const server = await createServer({ configFile: false, plugins: [vue()], server:
 const { default: Instructions } = await server.ssrLoadModule('/resources/js/Components/BankTransferInstructions.vue');
 const { default: SettingsCards } = await server.ssrLoadModule('/resources/js/Components/Admin/SettingsCards.vue');
 const { default: Settings } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/Index.vue');
+const { default: FeeForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/Fees.vue');
 const { default: BankForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/BankTransfer.vue');
 after(() => server.close());
 
@@ -54,6 +55,7 @@ async function renderPage(component, props) {
 test('settings entry preserves admin menus and uses responsive cards without dead links', async () => {
   const html = await renderPage(Settings, { cards: [
     { title: '振込先設定', description: '振込先を登録します。', status: '振込先設定済み', account_number: '****890', href: '/admin/settings/bank-transfer', button: '設定を開く' },
+    { title: '手数料設定', description: '支払方法に応じた手数料', status: '現在の代引き手数料：330円', href: '/admin/settings/fees', button: '設定を開く' },
   ] });
   for (const label of ['各種設定', '販売商品', '基本商品・属性', '商品分類', '仕入先', '入庫', 'ロット在庫', '出庫・在庫調整', '注文', '発送', '取り寄せ', '注文設定', 'アカウント']) assert.ok(html.includes(label), label);
   assert.ok(html.includes('href="/admin/settings"'));
@@ -62,7 +64,10 @@ test('settings entry preserves admin menus and uses responsive cards without dea
   assert.ok(!html.includes('href="/admin/units"'));
   assert.ok(!html.includes('href="/admin/tax-rates"'));
   assert.ok(html.includes('grid-cols-1'));
-  assert.ok(html.includes('max-w-2xl'));
+  assert.ok(html.includes('md:grid-cols-2'));
+  assert.ok(html.includes('手数料設定'));
+  assert.ok(html.includes('現在の代引き手数料：330円'));
+  assert.ok(html.includes('href="/admin/settings/fees"'));
   for (const hidden of ['単位管理', '税率管理', '在庫・期限設定', '準備中']) assert.ok(!html.includes(hidden), hidden);
   assert.ok(html.includes('****890'));
   assert.ok(!html.includes('001234567890'));
@@ -84,7 +89,7 @@ test('bank form uses text inputs to preserve leading zeroes and places validatio
   assert.ok(html.includes('貯蓄'));
 });
 
-test('bank-only hub card shows unregistered warning without other settings cards', async () => {
+test('single bank card still shows unregistered warning without other settings cards', async () => {
   const html = await renderToString(createSSRApp(SettingsCards, { cards: [{
     title: '振込先設定', description: '銀行振込でお客様へ案内する振込先を登録します。',
     status: '振込先が設定されていません。銀行振込の注文受付前に登録してください。',
@@ -96,4 +101,32 @@ test('bank-only hub card shows unregistered warning without other settings cards
   assert.ok(html.includes('href="/admin/settings/bank-transfer"'));
   assert.ok(html.includes('max-w-2xl'));
   for (const hidden of ['注文設定', '単位管理', '税率管理', '在庫・期限設定', '準備中']) assert.ok(!html.includes(hidden), hidden);
+});
+
+for (const [value, input, label] of [['330.0000', '330', '330円（税込）'], ['0.0000', '0', '0円（代引き手数料無料）'], [null, '', '未設定']]) {
+  test(`fee form displays ${label} without four-decimal formatting`, async () => {
+    const html = await renderPage(FeeForm, {
+      cashOnDeliveryFee: value, cashOnDeliveryAvailable: false, maxFee: '999999999999999',
+      saveUrl: '/admin/settings/fees', settingsUrl: '/admin/settings',
+    });
+    assert.ok(html.includes('代引き手数料（税込）'));
+    assert.match(html, /id="cod-fee"[^>]+type="number"[^>]+min="0"[^>]+step="1"/);
+    assert.ok(html.includes(`value="${input}"`));
+    assert.ok(html.includes(label));
+    assert.ok(html.includes('現在の注文金額には加算されません'));
+    assert.ok(html.includes('min-w-0'));
+    assert.ok(html.includes('円'));
+    assert.ok(!html.includes('value="330.0000"'));
+  });
+}
+
+test('fee validation errors are displayed next to the amount field', async () => {
+  const html = await renderPage(FeeForm, {
+    cashOnDeliveryFee: null, cashOnDeliveryAvailable: false, maxFee: '999999999999999',
+    saveUrl: '/admin/settings/fees', settingsUrl: '/admin/settings',
+    errors: { cash_on_delivery_fee: '代引き手数料は0円以上で入力してください。' },
+  });
+  assert.ok(html.includes('id="cod-fee-error"'));
+  assert.ok(html.includes('代引き手数料は0円以上で入力してください。'));
+  assert.ok(html.includes('aria-invalid="true"'));
 });

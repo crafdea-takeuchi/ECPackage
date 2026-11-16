@@ -4,7 +4,7 @@ defineProps({ cards: { type: Array, required: true } });
 </script>
 
 <template>
-  <div class="grid grid-cols-1 gap-5" :class="cards.length === 1 ? 'w-full max-w-2xl' : 'md:grid-cols-2 xl:grid-cols-3'">
+  <div class="grid grid-cols-1 gap-5" :class="cards.length === 1 ? 'w-full max-w-2xl' : cards.length === 2 ? 'md:grid-cols-2' : 'md:grid-cols-2 xl:grid-cols-3'">
     <section v-for="card in cards" :key="card.title" class="flex min-w-0 flex-col rounded-xl border border-slate-200 bg-white p-6">
       <h2 class="text-lg font-semibold">{{ card.title }}</h2>
       <p class="mt-3 text-sm leading-6 text-slate-600">{{ card.description }}</p>

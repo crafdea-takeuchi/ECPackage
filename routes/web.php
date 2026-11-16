@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\BackorderController;
 use App\Http\Controllers\Admin\BankTransferSettingController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CsvImportController;
+use App\Http\Controllers\Admin\FeeSettingController;
 use App\Http\Controllers\Admin\InventoryLotController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\OrderSettingController;
@@ -96,6 +97,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('settings/fees', [FeeSettingController::class, 'edit'])->name('settings.fees.edit');
+    Route::put('settings/fees', [FeeSettingController::class, 'update'])->name('settings.fees.update');
     Route::get('settings/bank-transfer', [BankTransferSettingController::class, 'edit'])->name('settings.bank-transfer.edit');
     Route::put('settings/bank-transfer', [BankTransferSettingController::class, 'update'])->name('settings.bank-transfer.update');
     Route::get('order-settings', [OrderSettingController::class, 'edit'])->name('order-settings.edit');

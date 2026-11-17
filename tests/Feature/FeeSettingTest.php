@@ -20,7 +20,7 @@ class FeeSettingTest extends TestCase
     {
         $this->actingAs(User::factory()->admin()->create());
         $this->get(route('admin.settings.index'))->assertInertia(fn (Assert $page) => $page
-            ->has('cards', 2)->where('cards.0.title', '振込先設定')->where('cards.1.title', '手数料設定')
+            ->has('cards', 3)->where('cards.0.title', '振込先設定')->where('cards.1.title', '手数料設定')
             ->where('cards.1.description', '代引きなど、支払方法に応じた手数料を設定します。')
             ->where('cards.1.status', '現在の代引き手数料：未設定')
             ->where('cards.1.href', route('admin.settings.fees.edit', [], false)));

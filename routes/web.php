@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\ProductGroupController;
 use App\Http\Controllers\Admin\PurchaseReceiptController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShipmentController;
+use App\Http\Controllers\Admin\ShippingSettingController;
 use App\Http\Controllers\Admin\StockOperationController;
 use App\Http\Controllers\Admin\SupplierController;
 use App\Http\Controllers\Admin\UserController;
@@ -97,6 +98,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('settings/shipping', [ShippingSettingController::class, 'edit'])->name('settings.shipping.edit');
+    Route::put('settings/shipping', [ShippingSettingController::class, 'update'])->name('settings.shipping.update');
     Route::get('settings/fees', [FeeSettingController::class, 'edit'])->name('settings.fees.edit');
     Route::put('settings/fees', [FeeSettingController::class, 'update'])->name('settings.fees.update');
     Route::get('settings/bank-transfer', [BankTransferSettingController::class, 'edit'])->name('settings.bank-transfer.edit');

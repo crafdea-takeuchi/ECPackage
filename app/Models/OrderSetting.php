@@ -12,7 +12,7 @@ class OrderSetting extends Model
 
     protected function casts(): array
     {
-        return ['cancellable_statuses' => 'array', 'bank_transfer' => 'encrypted:array', 'bank_transfer_updated_at' => 'datetime', 'cash_on_delivery_fee' => 'decimal:4'];
+        return ['cancellable_statuses' => 'array', 'bank_transfer' => 'encrypted:array', 'bank_transfer_updated_at' => 'datetime', 'cash_on_delivery_fee' => 'decimal:4', 'shipping_zone_fees' => 'array', 'free_shipping_thresholds' => 'array'];
     }
 
     public static function current(): self

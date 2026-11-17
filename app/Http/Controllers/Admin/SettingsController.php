@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Actions\Orders\BankTransferDetails;
+use App\Actions\Orders\ShippingZones;
 use App\Http\Controllers\Controller;
 use App\Models\OrderSetting;
 use Inertia\Inertia;
@@ -16,6 +17,12 @@ class SettingsController extends Controller
         $details = $settings?->bank_transfer;
         $fee = $settings?->cash_on_delivery_fee;
         $registered = BankTransferDetails::registered($details);
+        $count = ShippingZones::configuredCount($settings?->shipping_zone_fees);
+        $shippingStatus = $count === 0 ? '送料が設定されていません' : ($count === 8 ? '8地域設定済み' : $count.'/8地域設定済み');
+        if ($count > 0) {
+            $thresholdCount = ShippingZones::configuredCount($settings?->free_shipping_thresholds);
+            $shippingStatus .= "\n地域別送料無料基準：".($thresholdCount === 0 ? '設定なし' : $thresholdCount.'地域設定済み');
+        }
 
         return Inertia::render('Admin/Settings/Index', [
             'cards' => [
@@ -27,6 +34,9 @@ class SettingsController extends Controller
                 ['title' => '手数料設定', 'description' => '代引きなど、支払方法に応じた手数料を設定します。',
                     'status' => '現在の代引き手数料：'.($fee === null ? '未設定' : number_format((float) $fee, 0).'円'.(bccomp($fee, '0', 4) === 0 ? '（無料）' : '')),
                     'href' => route('admin.settings.fees.edit', [], false), 'button' => '設定を開く'],
+                ['title' => '送料設定', 'description' => '発送先の地域ごとの送料と、送料無料になる購入金額を設定します。',
+                    'status' => $shippingStatus, 'warning' => $count !== 8,
+                    'href' => route('admin.settings.shipping.edit', [], false), 'button' => '設定を開く'],
             ],
         ]);
     }

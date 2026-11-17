@@ -21,7 +21,7 @@ class BankTransferSettingsTest extends TestCase
     {
         $this->actingAs(User::factory()->admin()->create())->get(route('admin.settings.index'))
             ->assertInertia(fn (Assert $page) => $page->component('Admin/Settings/Index')
-                ->has('cards', 2)
+                ->has('cards', 3)
                 ->where('cards.0.title', '振込先設定')
                 ->where('cards.1.title', '手数料設定')
                 ->where('cards.1.href', route('admin.settings.fees.edit', [], false))

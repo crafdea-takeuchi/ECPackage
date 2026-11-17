@@ -8,12 +8,11 @@ use App\Models\OrderSetting;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PlaceCustomerOrder
 {
-    public function __construct(private ConfirmOrder $confirmOrder, private CalculateTaxes $calculateTaxes) {}
+    public function __construct(private ConfirmOrder $confirmOrder, private CalculateTaxes $calculateTaxes, private AssignOrderNumber $assignOrderNumber) {}
 
     /**
      * @param  array<int|string, string|int|float>  $cart
@@ -37,11 +36,10 @@ class PlaceCustomerOrder
             }
 
             $order = new Order(['customer_id' => $customer->id, 'ordered_on' => today()->format('Y-m-d'), 'notes' => $notes, ...$shippingAddress, 'payment_method' => $paymentMethod]);
-            $order->order_number = 'O-'.Str::ulid();
             $order->order_source = 'customer';
             $order->status = 'draft';
             $order->created_by = $customer->id;
-            $order->save();
+            $this->assignOrderNumber->handle($order);
 
             $subtotal = '0';
             $lines = [];

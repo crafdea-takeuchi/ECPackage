@@ -10,7 +10,7 @@ class OrderFactory extends Factory
     public function definition(): array
     {
         return [
-            'order_number' => 'O-'.fake()->unique()->numerify('############'),
+            'order_number' => 'ON'.now('Asia/Tokyo')->format('ym').fake()->unique()->regexify('[A-HJ-NP-Z2-9]{4}'),
             'customer_id' => User::factory(),
             'order_source' => 'admin',
             'ordered_on' => fake()->date(),

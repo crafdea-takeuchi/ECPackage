@@ -115,3 +115,14 @@ test('cash on delivery shows the fee and adds it to the displayed total only whi
   assert.ok(!page.text().includes('代引き手数料'));
   assert.ok(!page.text().includes('1,430 円'));
 });
+
+test('bank panel ends with the transfer name note', async (t) => {
+  const page = mount(t);
+  const text = page.text();
+  const note = 'お振込みの際は、振込依頼人名の後ろに注文番号を付けてお振込みください。';
+  assert.ok(text.includes(note));
+  assert.ok(text.includes('記入例：ヤマダタロウ ON2611AB23'));
+  assert.ok(text.indexOf('注文番号を添えてください。') < text.indexOf(note));
+  await page.select('cash');
+  assert.ok(!page.text().includes(note));
+});

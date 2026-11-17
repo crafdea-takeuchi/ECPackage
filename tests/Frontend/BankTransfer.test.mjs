@@ -186,3 +186,15 @@ test('shipping validation errors appear next to the relevant regional amount', a
   assert.match(html, /id="shipping-hokkaido"[^>]*aria-invalid="true"/);
   assert.match(html, /id="free-shipping-okinawa"[^>]*aria-invalid="true"/);
 });
+
+test('transfer name note is shown only when requested by customer screens', async () => {
+  const note = 'お振込みの際は、振込依頼人名の後ろに注文番号を付けてお振込みください。';
+  const adminHtml = await renderToString(createSSRApp(Instructions, { paymentMethod: 'bank_transfer', bank }));
+  assert.ok(!adminHtml.includes(note));
+  assert.ok(!adminHtml.includes('記入例'));
+  const customerHtml = await renderToString(createSSRApp(Instructions, { paymentMethod: 'bank_transfer', bank, showTransferNote: true }));
+  assert.ok(customerHtml.includes(note));
+  assert.ok(customerHtml.includes('記入例：ヤマダタロウ ON2611AB23'));
+  const legacyHtml = await renderToString(createSSRApp(Instructions, { paymentMethod: 'bank_transfer', bank: null, showTransferNote: true }));
+  assert.ok(!legacyHtml.includes(note));
+});

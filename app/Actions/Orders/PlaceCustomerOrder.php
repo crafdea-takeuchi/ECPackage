@@ -4,6 +4,7 @@ namespace App\Actions\Orders;
 
 use App\Models\Order;
 use App\Models\OrderLine;
+use App\Models\OrderSetting;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -71,16 +72,31 @@ class PlaceCustomerOrder
                 $lines[] = ['tax_rate_name' => $line->tax_rate_name, 'tax_rate' => $line->tax_rate, 'amount' => $amount];
             }
             $amounts = $this->calculateTaxes->handle($lines);
-            if (bccomp($amounts['total'], '999999999999999.9999', 4) === 1) {
+            $paymentFee = $this->paymentFee($paymentMethod);
+            $total = bcadd($amounts['total'], $paymentFee, 4);
+            if (bccomp($total, '999999999999999.9999', 4) === 1) {
                 throw ValidationException::withMessages(['cart' => '注文金額の合計が上限を超えています。']);
             }
             $order->subtotal = $amounts['subtotal'];
             $order->tax_amount = $amounts['tax_amount'];
-            $order->total = $amounts['total'];
+            $order->payment_fee = $paymentFee;
+            $order->total = $total;
             $order->save();
 
             return $this->confirmOrder->handle($order, $customer);
         }, 3);
+    }
+
+    /**
+     * 代引きの場合は注文確定時点の代引き手数料（税込）を返す。未設定は手数料なしとして扱う。
+     */
+    private function paymentFee(string $paymentMethod): string
+    {
+        if ($paymentMethod !== 'cash_on_delivery') {
+            return '0.0000';
+        }
+
+        return bcadd((string) (OrderSetting::whereKey(1)->sharedLock()->value('cash_on_delivery_fee') ?? '0'), '0', 4);
     }
 
     private function decimalPlaces(string $value): int

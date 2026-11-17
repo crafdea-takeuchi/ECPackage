@@ -58,3 +58,8 @@ test('unavailable line tax is explicit instead of showing an estimated value or 
   assert.ok(html.includes('明細税額の記録なし'));
   assert.ok(!html.includes('税額 0 円'));
 });
+
+test('cash on delivery order shows the saved fee before the total', async () => {
+  const html = await render({ payment_method: 'cash_on_delivery', subtotal: '1000.0000', tax_amount: '100.0000', payment_fee: '330.0000', total: '1430.0000' });
+  assert.deepEqual(rows(html), [['商品小計（税抜）', '1,000 円'], ['送料', '0 円'], ['税金', '100 円'], ['代引き手数料（税込）', '330 円'], ['合計（税込）', '1,430 円']]);
+});

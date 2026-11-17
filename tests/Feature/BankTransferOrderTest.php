@@ -72,12 +72,9 @@ class BankTransferOrderTest extends TestCase
         $this->assertSame('bank_transfer', $order->payment_method);
         $this->assertSame('200.0000', $order->subtotal);
         $this->assertSame('0.0000', $order->tax_amount);
+        $this->assertSame('0.0000', $order->payment_fee);
         $this->assertSame('200.0000', $order->total);
         $this->assertSame('330.0000', OrderSetting::current()->cash_on_delivery_fee);
-        $this->withSession(['cart' => [$context['product']->id => '1']])
-            ->post('/checkout', [...$this->checkoutInput(), 'payment_method' => 'cash_on_delivery'])
-            ->assertSessionHasErrors('payment_method');
-        $this->assertDatabaseCount('orders', 1);
     }
 
     public function test_unregistered_bank_blocks_confirmation_and_keeps_cart_stock_and_database_unchanged(): void

@@ -96,3 +96,22 @@ test('unregistered bank uses a checkout notice instead of a missing-order-snapsh
   await page.select('cash');
   assert.ok(!page.text().includes('振込先が設定されていません。'));
 });
+
+test('cash on delivery shows the fee and adds it to the displayed total only while selected', async (t) => {
+  const page = mount(t, {
+    total: '1100.0000',
+    paymentMethods: { bank_transfer: '銀行振込', cash_on_delivery: '代引き' },
+    paymentFees: { cash_on_delivery: '330.0000' },
+  });
+  assert.ok(!page.text().includes('代引き手数料'));
+  assert.ok(page.text().includes('1,100 円'));
+  await page.select('cash_on_delivery');
+  assert.ok(page.text().includes('代引き手数料（税込）'));
+  assert.ok(page.text().includes('330 円'));
+  assert.ok(page.text().includes('1,430 円'));
+  assert.ok(page.text().includes('配達員へご注文合計（税込）1,430 円'));
+  assert.ok(!page.text().includes('お振込先'));
+  await page.select('bank_transfer');
+  assert.ok(!page.text().includes('代引き手数料'));
+  assert.ok(!page.text().includes('1,430 円'));
+});

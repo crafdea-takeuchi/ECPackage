@@ -26,7 +26,7 @@ class FeeSettingTest extends TestCase
             ->where('cards.1.href', route('admin.settings.fees.edit', [], false)));
         $this->get(route('admin.settings.fees.edit'))->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Settings/Fees')->where('cashOnDeliveryFee', null)
-            ->where('cashOnDeliveryAvailable', false)
+            ->where('cashOnDeliveryAvailable', true)
             ->where('saveUrl', route('admin.settings.fees.update', [], false))
             ->where('settingsUrl', route('admin.settings.index', [], false)));
     }
@@ -122,14 +122,14 @@ class FeeSettingTest extends TestCase
         $this->assertNull(OrderSetting::current()->cash_on_delivery_fee);
     }
 
-    public function test_absent_singleton_is_created_at_id_one_and_cod_is_not_added(): void
+    public function test_absent_singleton_is_created_at_id_one_and_cod_is_available(): void
     {
         OrderSetting::whereKey(1)->delete();
         $this->actingAs(User::factory()->admin()->create())->put(route('admin.settings.fees.update'), ['cash_on_delivery_fee' => 330])
             ->assertSessionHasNoErrors();
         $this->assertSame(1, OrderSetting::sole()->id);
         $this->assertSame('330.0000', OrderSetting::sole()->cash_on_delivery_fee);
-        $this->assertSame(['bank_transfer' => '銀行振込'], Order::PAYMENT_METHODS);
-        $this->assertFalse(Schema::hasColumn('orders', 'payment_fee'));
+        $this->assertSame(['bank_transfer' => '銀行振込', 'cash_on_delivery' => '代引き'], Order::PAYMENT_METHODS);
+        $this->assertTrue(Schema::hasColumn('orders', 'payment_fee'));
     }
 }

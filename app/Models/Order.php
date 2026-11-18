@@ -28,6 +28,7 @@ class Order extends Model
 
     public const PAYMENT_METHODS = [
         'bank_transfer' => '銀行振込',
+        'cash_on_delivery' => '代引き',
     ];
 
     protected $fillable = [
@@ -44,6 +45,8 @@ class Order extends Model
             'ordered_on' => 'date:Y-m-d',
             'subtotal' => 'decimal:4',
             'tax_amount' => 'decimal:4',
+            'shipping_fee' => 'decimal:4',
+            'payment_fee' => 'decimal:4',
             'total' => 'decimal:4',
             'confirmed_at' => 'datetime',
             'backorder_completed_at' => 'datetime',

@@ -21,6 +21,7 @@ class OrderTaxDisplay
             'tax_rate' => $line->tax_rate,
             'amount' => $line->line_amount,
         ]));
+        $amounts['total'] = bcadd(bcadd($amounts['total'], (string) ($order->shipping_fee ?? '0'), 4), (string) ($order->payment_fee ?? '0'), 4);
         $unavailable = ['line_taxes' => $order->lines->mapWithKeys(fn (OrderLine $line): array => [$line->id => null])->all(), 'taxes' => []];
 
         foreach (['subtotal', 'tax_amount', 'total'] as $field) {

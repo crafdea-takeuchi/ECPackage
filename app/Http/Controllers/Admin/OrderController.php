@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Orders\AssignOrderNumber;
 use App\Actions\Orders\CancelOrder;
 use App\Actions\Orders\ConfirmOrder;
 use App\Actions\Orders\OrderTaxDisplay;
@@ -17,7 +18,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -84,15 +84,14 @@ class OrderController extends Controller
         ]);
     }
 
-    public function store(OrderRequest $request, ConfirmOrder $confirmOrder): RedirectResponse
+    public function store(OrderRequest $request, ConfirmOrder $confirmOrder, AssignOrderNumber $assignOrderNumber): RedirectResponse
     {
-        $order = DB::transaction(function () use ($request, $confirmOrder): Order {
+        $order = DB::transaction(function () use ($request, $confirmOrder, $assignOrderNumber): Order {
             $order = new Order($request->safe()->only(['customer_id', 'ordered_on', 'notes']));
-            $order->order_number = 'O-'.Str::ulid();
             $order->order_source = 'admin';
             $order->status = 'draft';
             $order->created_by = $request->user()->id;
-            $order->save();
+            $assignOrderNumber->handle($order);
             $this->syncLines($request, $order);
             if ($request->validated('action') === 'confirm') {
                 $confirmOrder->handle($order, $request->user());

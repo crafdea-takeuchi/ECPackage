@@ -4,15 +4,15 @@ namespace App\Actions\Orders;
 
 use App\Models\Order;
 use App\Models\OrderLine;
+use App\Models\OrderSetting;
 use App\Models\Product;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class PlaceCustomerOrder
 {
-    public function __construct(private ConfirmOrder $confirmOrder, private CalculateTaxes $calculateTaxes) {}
+    public function __construct(private ConfirmOrder $confirmOrder, private CalculateTaxes $calculateTaxes, private AssignOrderNumber $assignOrderNumber, private CalculateShippingFee $calculateShippingFee) {}
 
     /**
      * @param  array<int|string, string|int|float>  $cart
@@ -36,11 +36,10 @@ class PlaceCustomerOrder
             }
 
             $order = new Order(['customer_id' => $customer->id, 'ordered_on' => today()->format('Y-m-d'), 'notes' => $notes, ...$shippingAddress, 'payment_method' => $paymentMethod]);
-            $order->order_number = 'O-'.Str::ulid();
             $order->order_source = 'customer';
             $order->status = 'draft';
             $order->created_by = $customer->id;
-            $order->save();
+            $this->assignOrderNumber->handle($order);
 
             $subtotal = '0';
             $lines = [];
@@ -71,16 +70,34 @@ class PlaceCustomerOrder
                 $lines[] = ['tax_rate_name' => $line->tax_rate_name, 'tax_rate' => $line->tax_rate, 'amount' => $amount];
             }
             $amounts = $this->calculateTaxes->handle($lines);
-            if (bccomp($amounts['total'], '999999999999999.9999', 4) === 1) {
+            $settings = OrderSetting::whereKey(1)->sharedLock()->first();
+            $shippingFee = $this->calculateShippingFee->handle($settings, $shippingAddress['shipping_prefecture'], $amounts['total']);
+            $paymentFee = $this->paymentFee($settings, $paymentMethod);
+            $total = bcadd(bcadd($amounts['total'], $shippingFee, 4), $paymentFee, 4);
+            if (bccomp($total, '999999999999999.9999', 4) === 1) {
                 throw ValidationException::withMessages(['cart' => '注文金額の合計が上限を超えています。']);
             }
             $order->subtotal = $amounts['subtotal'];
             $order->tax_amount = $amounts['tax_amount'];
-            $order->total = $amounts['total'];
+            $order->shipping_fee = $shippingFee;
+            $order->payment_fee = $paymentFee;
+            $order->total = $total;
             $order->save();
 
             return $this->confirmOrder->handle($order, $customer);
         }, 3);
+    }
+
+    /**
+     * 代引きの場合は注文確定時点の代引き手数料（税込）を返す。未設定は手数料なしとして扱う。
+     */
+    private function paymentFee(?OrderSetting $settings, string $paymentMethod): string
+    {
+        if ($paymentMethod !== 'cash_on_delivery') {
+            return '0.0000';
+        }
+
+        return bcadd((string) ($settings?->cash_on_delivery_fee ?? '0'), '0', 4);
     }
 
     private function decimalPlaces(string $value): int

@@ -304,7 +304,7 @@ class CustomerShoppingTest extends TestCase
                 ->component('Checkout/Create')
                 ->has('prefectures', 47)
                 ->where('prefectures.12', '東京都')
-                ->where('paymentMethods', ['bank_transfer' => '銀行振込'])
+                ->where('paymentMethods', ['bank_transfer' => '銀行振込', 'cash_on_delivery' => '代引き'])
                 ->where('customerName', '購入者'));
     }
 

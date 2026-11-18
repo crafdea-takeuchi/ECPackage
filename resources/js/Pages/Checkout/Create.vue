@@ -1,12 +1,53 @@
 <script setup>
+import { computed, ref, watch } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import BankTransferInstructions from '../../Components/BankTransferInstructions.vue';
 import ProductImage from '../../Components/ProductImage.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
-const props = defineProps({ items: Array, subtotal: String, taxes: Array, taxAmount: String, total: String, prefectures: Array, paymentMethods: Object, customerName: String, bankTransfer: Object });
+const props = defineProps({ items: Array, subtotal: String, taxes: Array, taxAmount: String, total: String, prefectures: Array, paymentMethods: Object, paymentFees: { type: Object, default: () => ({}) }, shippingFees: { type: Object, default: () => ({}) }, customerName: String, bankTransfer: Object });
 const form = useForm({ shipping_name: props.customerName ?? '', shipping_postal_code: '', shipping_prefecture: '', shipping_address_line1: '', shipping_address_line2: '', payment_method: Object.keys(props.paymentMethods ?? {})[0] ?? '', notes: '' });
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
+const paymentFee = computed(() => props.paymentFees?.[form.payment_method] ?? null);
+const shippingFee = computed(() => props.shippingFees?.[form.shipping_prefecture] ?? null);
+const orderTotal = computed(() => (Number(props.total) || 0) + (Number(shippingFee.value) || 0) + (Number(paymentFee.value) || 0));
+
+const postalLookupMessage = ref('');
+let postalLookupController = null;
+const normalizedPostalCode = value => (value ?? '').replace(/[０-９]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0)).replace(/[-－ー‐]/g, '');
+async function lookupPostalCode(postalCode) {
+  postalLookupController?.abort();
+  postalLookupController = new AbortController();
+  const { signal } = postalLookupController;
+  postalLookupMessage.value = '住所を検索しています…';
+  try {
+    const response = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${postalCode}`, { signal });
+    const data = await response.json();
+    const result = data?.results?.[0];
+    if (!result || !props.prefectures?.includes(result.address1)) {
+      postalLookupMessage.value = '該当する住所が見つかりませんでした。都道府県と住所を入力してください。';
+      return;
+    }
+    form.shipping_prefecture = result.address1;
+    if (!form.shipping_address_line1) {
+      form.shipping_address_line1 = `${result.address2}${result.address3}`;
+    }
+    postalLookupMessage.value = '';
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      postalLookupMessage.value = '住所を自動入力できませんでした。都道府県と住所を入力してください。';
+    }
+  }
+}
+watch(() => form.shipping_postal_code, value => {
+  const postalCode = normalizedPostalCode(value);
+  if (/^\d{7}$/.test(postalCode)) {
+    lookupPostalCode(postalCode);
+  } else {
+    postalLookupController?.abort();
+    postalLookupMessage.value = '';
+  }
+});
 function submit() { form.post('/checkout', { preserveScroll: true }); }
 </script>
 
@@ -15,17 +56,18 @@ function submit() { form.post('/checkout', { preserveScroll: true }); }
   <AppLayout>
     <Link href="/cart" class="nav-link text-sm">← カートへ戻る</Link><div class="mt-5 mb-7"><p class="text-xs font-bold tracking-widest text-emerald-700">CHECKOUT</p><h1 class="mt-3 text-3xl font-bold">注文内容の確認</h1><p class="mt-3 text-sm text-slate-500">確定時に最新の価格と在庫を再確認します。</p></div>
     <div v-if="form.hasErrors" role="alert" class="mb-6 rounded-xl bg-red-50 p-5 text-sm text-red-700"><p class="font-semibold">注文内容を確認してください。</p><ul class="mt-2 list-inside list-disc"><li v-for="(error, key) in form.errors" :key="key">{{ error }}</li></ul></div>
-    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-5 py-4">商品</th><th class="px-5 py-4 text-right">単価</th><th class="px-5 py-4 text-right">数量</th><th class="px-5 py-4 text-right">金額</th></tr></thead><tbody><tr v-for="item in items" :key="item.product.id" class="border-t border-slate-100"><td class="px-5 py-5"><ProductImage :image="item.product.images?.[0]" :name="item.product.name" class="mb-3 w-20" /><p class="font-semibold">{{ item.product.name }}</p><p class="mt-1 text-xs text-slate-500">{{ item.product.sku }}</p><p class="mt-1 text-xs text-slate-500">{{ item.product.tax_rate ? `${item.product.tax_rate.name}（${Number(item.product.tax_rate.rate)}%）` : '非課税' }}</p><p v-if="item.product.shortage_policy === 'backorder' && Number(item.quantity) > Number(item.product.available_quantity)" class="mt-2 text-xs text-amber-700">不足分は取り寄せとして受け付けます。</p></td><td class="px-5 py-5 text-right tabular-nums">{{ money(item.product.default_sale_price) }}</td><td class="px-5 py-5 text-right tabular-nums">{{ money(item.quantity) }} {{ item.product.unit.name }}</td><td class="px-5 py-5 text-right font-semibold tabular-nums">{{ money(item.amount) }}</td></tr></tbody></table></div><dl class="space-y-2 border-t border-slate-200 p-6 text-sm"><div class="flex items-center justify-between"><dt class="text-slate-500">小計（税抜）</dt><dd class="tabular-nums">{{ money(subtotal) }} 円</dd></div><div v-for="tax in taxes" :key="`${tax.name}-${tax.rate}`" class="flex items-center justify-between"><dt class="text-slate-500">{{ tax.name }}（{{ Number(tax.rate) }}%）対象 {{ money(tax.taxable_amount) }} 円</dt><dd class="tabular-nums">消費税 {{ money(tax.tax_amount) }} 円</dd></div><div class="flex items-center justify-between"><dt class="text-slate-500">消費税合計</dt><dd class="tabular-nums">{{ money(taxAmount) }} 円</dd></div></dl><div class="flex items-center justify-between border-t border-slate-200 p-6"><span class="text-sm text-slate-500">ご注文合計（税込）</span><strong class="text-2xl tabular-nums">{{ money(total) }} 円</strong></div></section>
+    <section class="overflow-hidden rounded-xl border border-slate-200 bg-white"><div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-slate-500"><tr><th class="px-5 py-4">商品</th><th class="px-5 py-4 text-right">単価</th><th class="px-5 py-4 text-right">数量</th><th class="px-5 py-4 text-right">金額</th></tr></thead><tbody><tr v-for="item in items" :key="item.product.id" class="border-t border-slate-100"><td class="px-5 py-5"><ProductImage :image="item.product.images?.[0]" :name="item.product.name" class="mb-3 w-20" /><p class="font-semibold">{{ item.product.name }}</p><p class="mt-1 text-xs text-slate-500">{{ item.product.sku }}</p><p class="mt-1 text-xs text-slate-500">{{ item.product.tax_rate ? `${item.product.tax_rate.name}（${Number(item.product.tax_rate.rate)}%）` : '非課税' }}</p><p v-if="item.product.shortage_policy === 'backorder' && Number(item.quantity) > Number(item.product.available_quantity)" class="mt-2 text-xs text-amber-700">不足分は取り寄せとして受け付けます。</p></td><td class="px-5 py-5 text-right tabular-nums">{{ money(item.product.default_sale_price) }}</td><td class="px-5 py-5 text-right tabular-nums">{{ money(item.quantity) }} {{ item.product.unit.name }}</td><td class="px-5 py-5 text-right font-semibold tabular-nums">{{ money(item.amount) }}</td></tr></tbody></table></div><dl class="space-y-2 border-t border-slate-200 p-6 text-sm"><div class="flex items-center justify-between"><dt class="text-slate-500">小計（税抜）</dt><dd class="tabular-nums">{{ money(subtotal) }} 円</dd></div><div v-for="tax in taxes" :key="`${tax.name}-${tax.rate}`" class="flex items-center justify-between"><dt class="text-slate-500">{{ tax.name }}（{{ Number(tax.rate) }}%）対象 {{ money(tax.taxable_amount) }} 円</dt><dd class="tabular-nums">消費税 {{ money(tax.tax_amount) }} 円</dd></div><div class="flex items-center justify-between"><dt class="text-slate-500">消費税合計</dt><dd class="tabular-nums">{{ money(taxAmount) }} 円</dd></div><div class="flex items-center justify-between"><dt class="text-slate-500">送料（税込）</dt><dd class="tabular-nums">{{ shippingFee === null ? 'お届け先の都道府県を選択すると表示します' : `${money(shippingFee)} 円` }}</dd></div><div v-if="paymentFee !== null" class="flex items-center justify-between"><dt class="text-slate-500">代引き手数料（税込）</dt><dd class="tabular-nums">{{ money(paymentFee) }} 円</dd></div></dl><div class="flex items-center justify-between border-t border-slate-200 p-6"><span class="text-sm text-slate-500">ご注文合計（税込）</span><strong class="text-2xl tabular-nums">{{ money(orderTotal) }} 円</strong></div></section>
     <form @submit.prevent="submit" class="mt-6 space-y-6">
       <section class="rounded-xl border border-slate-200 bg-white p-6"><h2 class="text-lg font-bold">お届け先</h2><div class="mt-5 grid gap-5 sm:grid-cols-2">
         <div class="sm:col-span-2"><label for="shipping-name" class="mb-2 block text-sm font-medium">お名前 <span class="text-red-600">*</span></label><input id="shipping-name" v-model="form.shipping_name" type="text" class="field" maxlength="100" autocomplete="shipping name" required :aria-invalid="!!form.errors.shipping_name"></div>
-        <div><label for="shipping-postal-code" class="mb-2 block text-sm font-medium">郵便番号 <span class="text-red-600">*</span></label><input id="shipping-postal-code" v-model="form.shipping_postal_code" type="text" inputmode="numeric" class="field" maxlength="8" placeholder="123-4567" autocomplete="shipping postal-code" required :aria-invalid="!!form.errors.shipping_postal_code"></div>
+        <div><label for="shipping-postal-code" class="mb-2 block text-sm font-medium">郵便番号 <span class="text-red-600">*</span></label><input id="shipping-postal-code" v-model="form.shipping_postal_code" type="text" inputmode="numeric" class="field" maxlength="8" placeholder="123-4567" autocomplete="shipping postal-code" required :aria-invalid="!!form.errors.shipping_postal_code" aria-describedby="postal-lookup-message"><p id="postal-lookup-message" class="mt-2 text-xs text-slate-500" role="status">{{ postalLookupMessage || '郵便番号を入力すると、都道府県と住所を自動入力します。' }}</p></div>
         <div><label for="shipping-prefecture" class="mb-2 block text-sm font-medium">都道府県 <span class="text-red-600">*</span></label><select id="shipping-prefecture" v-model="form.shipping_prefecture" class="field" autocomplete="shipping address-level1" required :aria-invalid="!!form.errors.shipping_prefecture"><option value="" disabled>選択してください</option><option v-for="prefecture in prefectures" :key="prefecture" :value="prefecture">{{ prefecture }}</option></select></div>
         <div class="sm:col-span-2"><label for="shipping-address-line1" class="mb-2 block text-sm font-medium">市区町村・番地 <span class="text-red-600">*</span></label><input id="shipping-address-line1" v-model="form.shipping_address_line1" type="text" class="field" maxlength="200" placeholder="千代田区千代田1-1" autocomplete="shipping address-line1" required :aria-invalid="!!form.errors.shipping_address_line1"></div>
         <div class="sm:col-span-2"><label for="shipping-address-line2" class="mb-2 block text-sm font-medium">建物名・部屋番号</label><input id="shipping-address-line2" v-model="form.shipping_address_line2" type="text" class="field" maxlength="200" autocomplete="shipping address-line2" :aria-invalid="!!form.errors.shipping_address_line2"></div>      </div></section>
       <section class="rounded-xl border border-slate-200 bg-white p-6"><h2 class="text-lg font-bold">決済方法</h2><div class="mt-5 sm:w-1/2"><label for="payment-method" class="mb-2 block text-sm font-medium">お支払い方法 <span class="text-red-600">*</span></label><select id="payment-method" v-model="form.payment_method" class="field" required :aria-invalid="!!form.errors.payment_method"><option v-for="(label, value) in paymentMethods" :key="value" :value="value">{{ label }}</option></select></div>
-        <BankTransferInstructions v-if="bankTransfer" :payment-method="form.payment_method" :bank="bankTransfer" holder-kana-only />
+        <BankTransferInstructions v-if="bankTransfer" :payment-method="form.payment_method" :bank="bankTransfer" holder-kana-only show-transfer-note />
         <p v-else-if="form.payment_method === 'bank_transfer'" class="mt-5 text-sm text-amber-800" role="status">振込先が設定されていません。</p>
+        <p v-if="form.payment_method === 'cash_on_delivery'" class="mt-5 text-sm text-slate-600">商品お届け時に、配達員へご注文合計（税込）{{ money(orderTotal) }} 円をお支払いください。</p>
       </section>
       <section class="rounded-xl border border-slate-200 bg-white p-6"><label for="checkout-notes" class="mb-2 block text-sm font-medium">ご要望・備考</label><textarea id="checkout-notes" v-model="form.notes" class="field min-h-24" maxlength="2000"></textarea></section><div class="flex justify-end"><button type="submit" class="btn-primary min-w-52" :disabled="form.processing">{{ form.processing ? '注文中…' : '注文を確定する' }}</button></div></form>
   </AppLayout>

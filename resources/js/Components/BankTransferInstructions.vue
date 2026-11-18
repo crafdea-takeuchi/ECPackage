@@ -1,5 +1,5 @@
 <script setup>
-defineProps({ paymentMethod: String, bank: Object, holderKanaOnly: Boolean });
+defineProps({ paymentMethod: String, bank: Object, holderKanaOnly: Boolean, showTransferNote: Boolean });
 </script>
 
 <template>
@@ -11,6 +11,11 @@ defineProps({ paymentMethod: String, bank: Object, holderKanaOnly: Boolean });
       <p>口座名義：{{ holderKanaOnly ? bank.account_holder_kana : bank.account_holder }}</p>
       <p v-if="!holderKanaOnly">口座名義カナ：{{ bank.account_holder_kana }}</p>
       <p v-if="bank.instructions" class="mt-4 whitespace-pre-wrap leading-6">{{ bank.instructions }}</p>
+      <div v-if="showTransferNote" class="mt-4 rounded-lg bg-amber-50 p-4 leading-6 text-amber-900">
+        <p>お振込みの際は、振込依頼人名の後ろに注文番号を付けてお振込みください。</p>
+        <p>記入例：ヤマダタロウ ON2611AB23</p>
+        <p>※お振込の際には別途振込手数料がかかります。</p>
+      </div>
     </div>
     <p v-else class="mt-4 text-sm text-slate-600">この注文には注文時点の振込先情報が保存されていません。</p>
   </section>

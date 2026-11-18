@@ -66,6 +66,11 @@ function mount(t, overrides = {}) {
       find(root, el => el.props?.id === 'payment-method').props['onUpdate:modelValue'](method);
       await nextTick();
     },
+    async set(id, value) {
+      find(root, el => el.props?.id === id).props['onUpdate:modelValue'](value);
+      await nextTick();
+    },
+    value: id => find(root, el => el.props?.id === id).value,
   };
 }
 
@@ -125,4 +130,70 @@ test('bank panel ends with the transfer name note', async (t) => {
   assert.ok(text.indexOf('注文番号を添えてください。') < text.indexOf(note));
   await page.select('cash');
   assert.ok(!page.text().includes(note));
+});
+
+const settle = async () => { await new Promise(resolve => setTimeout(resolve, 0)); await nextTick(); };
+function mockFetch(t, handler) {
+  const original = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url, options) => { calls.push(url); return handler(url, options); };
+  t.after(() => { globalThis.fetch = original; });
+  return calls;
+}
+const zipcloud = results => ({ json: async () => ({ status: 200, message: null, results }) });
+
+test('shipping fee of the selected prefecture is shown and added to the total with the cod fee', async (t) => {
+  const page = mount(t, {
+    total: '1100.0000', prefectures: ['北海道', '東京都'],
+    paymentMethods: { cash_on_delivery: '代引き' }, paymentFees: { cash_on_delivery: '330.0000' },
+    shippingFees: { 北海道: '1200.0000', 東京都: '0.0000' },
+  });
+  assert.ok(page.text().includes('お届け先の都道府県を選択すると表示します'));
+  assert.ok(page.text().includes('1,430 円'));
+  await page.set('shipping-prefecture', '北海道');
+  assert.ok(page.text().includes('送料（税込）'));
+  assert.ok(page.text().includes('1,200 円'));
+  assert.ok(page.text().includes('2,630 円'));
+  await page.set('shipping-prefecture', '東京都');
+  assert.ok(page.text().includes('1,430 円'));
+  assert.ok(!page.text().includes('2,630 円'));
+});
+
+test('a complete postal code fills the prefecture and an empty address, which updates the shipping fee', async (t) => {
+  const calls = mockFetch(t, () => zipcloud([{ address1: '北海道', address2: '札幌市中央区', address3: '北一条西' }]));
+  const page = mount(t, { total: '1000.0000', prefectures: ['北海道', '東京都'], shippingFees: { 北海道: '1200.0000', 東京都: '800.0000' } });
+  await page.set('shipping-postal-code', '060-000');
+  assert.equal(calls.length, 0);
+  await page.set('shipping-postal-code', '０６０-０００１');
+  await settle();
+  assert.deepEqual(calls, ['https://zipcloud.ibsnet.co.jp/api/search?zipcode=0600001']);
+  assert.equal(page.value('shipping-address-line1'), '札幌市中央区北一条西');
+  assert.ok(page.text().includes('1,200 円'), '北海道の送料が表示される');
+  assert.ok(page.text().includes('2,200 円'));
+});
+
+test('postal lookup keeps an address the customer already typed', async (t) => {
+  mockFetch(t, () => zipcloud([{ address1: '東京都', address2: '千代田区', address3: '千代田' }]));
+  const page = mount(t, { prefectures: ['北海道', '東京都'], shippingFees: { 北海道: '1200.0000', 東京都: '800.0000' } });
+  await page.set('shipping-address-line1', '入力済みの住所1-2');
+  await page.set('shipping-postal-code', '1000001');
+  await settle();
+  assert.ok(page.text().includes('800 円'), '東京都の送料が表示される');
+  assert.equal(page.value('shipping-address-line1'), '入力済みの住所1-2');
+});
+
+test('unknown postal codes and lookup failures ask for manual input without changing the form', async (t) => {
+  let respond = () => zipcloud(null);
+  mockFetch(t, () => respond());
+  const page = mount(t, { prefectures: ['北海道', '東京都'], shippingFees: { 北海道: '1200.0000', 東京都: '800.0000' } });
+  await page.set('shipping-postal-code', '9999999');
+  await settle();
+  assert.ok(page.text().includes('該当する住所が見つかりませんでした。'));
+  assert.ok(page.text().includes('お届け先の都道府県を選択すると表示します'));
+  respond = () => { throw new TypeError('network'); };
+  await page.set('shipping-postal-code', '1000002');
+  await settle();
+  assert.ok(page.text().includes('住所を自動入力できませんでした。'));
+  assert.ok(page.text().includes('お届け先の都道府県を選択すると表示します'));
+  assert.equal(page.value('shipping-address-line1'), '');
 });

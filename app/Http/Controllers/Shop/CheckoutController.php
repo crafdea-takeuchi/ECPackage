@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Shop;
 
 use App\Actions\Cart\LoadCart;
 use App\Actions\Orders\BankTransferDetails;
+use App\Actions\Orders\CalculateShippingFee;
 use App\Actions\Orders\CalculateTaxes;
 use App\Actions\Orders\PlaceCustomerOrder;
 use App\Http\Controllers\Controller;
@@ -17,7 +18,7 @@ use Inertia\Response;
 
 class CheckoutController extends Controller
 {
-    public function create(Request $request, LoadCart $loadCart, CalculateTaxes $calculateTaxes): Response|RedirectResponse
+    public function create(Request $request, LoadCart $loadCart, CalculateTaxes $calculateTaxes, CalculateShippingFee $calculateShippingFee): Response|RedirectResponse
     {
         abort_if($request->user()->isAdmin(), 403);
         $cart = $loadCart->handle($request->session()->get('cart', []));
@@ -45,6 +46,7 @@ class CheckoutController extends Controller
             'total' => $amounts['total'],
             'prefectures' => Order::PREFECTURES,
             'paymentMethods' => Order::PAYMENT_METHODS,
+            'shippingFees' => $calculateShippingFee->forAllPrefectures($settings, $amounts['total']),
             'paymentFees' => ['cash_on_delivery' => $settings?->cash_on_delivery_fee ?? '0.0000'],
             'customerName' => $request->user()->name,
         ]);

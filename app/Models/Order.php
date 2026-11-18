@@ -45,6 +45,7 @@ class Order extends Model
             'ordered_on' => 'date:Y-m-d',
             'subtotal' => 'decimal:4',
             'tax_amount' => 'decimal:4',
+            'shipping_fee' => 'decimal:4',
             'payment_fee' => 'decimal:4',
             'total' => 'decimal:4',
             'confirmed_at' => 'datetime',

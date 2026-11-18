@@ -6,7 +6,7 @@ const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4
 <template>
   <dl class="space-y-3 border-t border-slate-200 p-6 text-sm" aria-label="注文金額の内訳">
     <div class="flex items-center justify-between gap-4"><dt class="text-slate-500">商品小計（税抜）</dt><dd class="tabular-nums">{{ money(order.subtotal) }} 円</dd></div>
-    <div class="flex items-center justify-between gap-4"><dt class="text-slate-500">送料</dt><dd class="tabular-nums">0 円</dd></div>
+    <div class="flex items-center justify-between gap-4"><dt class="text-slate-500">送料</dt><dd class="tabular-nums">{{ money(order.shipping_fee) }} 円</dd></div>
     <div class="flex items-center justify-between gap-4"><dt class="text-slate-500">税金</dt><dd class="tabular-nums">{{ money(order.tax_amount) }} 円</dd></div>
     <div v-for="tax in taxes" :key="`${tax.name}-${tax.rate}`" class="flex items-center justify-between gap-4 pl-4 text-xs text-slate-500"><dt>{{ tax.name }}（{{ Number(tax.rate) }}%）</dt><dd class="tabular-nums">{{ money(tax.tax_amount) }} 円</dd></div>
     <div v-if="order.payment_method === 'cash_on_delivery'" class="flex items-center justify-between gap-4"><dt class="text-slate-500">代引き手数料（税込）</dt><dd class="tabular-nums">{{ money(order.payment_fee) }} 円</dd></div>

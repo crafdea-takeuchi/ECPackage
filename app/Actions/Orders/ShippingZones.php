@@ -52,6 +52,22 @@ class ShippingZones
         return $zones;
     }
 
+    public static function zoneForPrefecture(string $prefecture): ?string
+    {
+        $index = array_search($prefecture, Order::PREFECTURES, true);
+        if ($index === false) {
+            return null;
+        }
+
+        foreach (self::PREFECTURE_CODES as $zone => $prefectureCodes) {
+            if (in_array($index + 1, $prefectureCodes, true)) {
+                return $zone;
+            }
+        }
+
+        return null;
+    }
+
     public static function configuredCount(?array $fees): int
     {
         return count(array_filter(self::codes(), fn (string $code): bool => isset($fees[$code]) && $fees[$code] !== ''));

@@ -63,3 +63,8 @@ test('cash on delivery order shows the saved fee before the total', async () => 
   const html = await render({ payment_method: 'cash_on_delivery', subtotal: '1000.0000', tax_amount: '100.0000', payment_fee: '330.0000', total: '1430.0000' });
   assert.deepEqual(rows(html), [['商品小計（税抜）', '1,000 円'], ['送料', '0 円'], ['税金', '100 円'], ['代引き手数料（税込）', '330 円'], ['合計（税込）', '1,430 円']]);
 });
+
+test('saved shipping fee replaces the zero shipping row and is part of the total', async () => {
+  const html = await render({ payment_method: 'bank_transfer', subtotal: '1000.0000', tax_amount: '100.0000', shipping_fee: '800.0000', payment_fee: '0.0000', total: '1900.0000' });
+  assert.deepEqual(rows(html), [['商品小計（税抜）', '1,000 円'], ['送料', '800 円'], ['税金', '100 円'], ['合計（税込）', '1,900 円']]);
+});

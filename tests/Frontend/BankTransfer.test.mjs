@@ -195,6 +195,9 @@ test('transfer name note is shown only when requested by customer screens', asyn
   const customerHtml = await renderToString(createSSRApp(Instructions, { paymentMethod: 'bank_transfer', bank, showTransferNote: true }));
   assert.ok(customerHtml.includes(note));
   assert.ok(customerHtml.includes('記入例：ヤマダタロウ ON2611AB23'));
+  const feeNote = '※お振込の際には別途振込手数料がかかります。';
+  assert.ok(customerHtml.indexOf('記入例：ヤマダタロウ ON2611AB23') < customerHtml.indexOf(feeNote));
+  assert.ok(!adminHtml.includes(feeNote));
   const legacyHtml = await renderToString(createSSRApp(Instructions, { paymentMethod: 'bank_transfer', bank: null, showTransferNote: true }));
   assert.ok(!legacyHtml.includes(note));
 });

@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import { router, useForm } from '@inertiajs/vue3';
 
 const props = defineProps({
@@ -26,7 +26,10 @@ const payload = form => ({
 const postalError = form => Object.entries(form.errors).find(([key]) => key === 'postal_codes' || key.startsWith('postal_codes.'))?.[1];
 
 const createForm = useForm(values());
-const entries = props.groups.map(group => ({ group, form: useForm(values(group)) }));
+const entries = ref([]);
+watch(() => props.groups, groups => {
+  entries.value = groups.map(group => ({ group, form: useForm(values(group)) }));
+}, { immediate: true });
 const deletingId = ref(null);
 
 function createGroup() {

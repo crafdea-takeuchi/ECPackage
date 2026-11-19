@@ -6,6 +6,7 @@ use App\Actions\Orders\BankTransferDetails;
 use App\Actions\Orders\ShippingZones;
 use App\Http\Controllers\Controller;
 use App\Models\OrderSetting;
+use App\Models\PostalCodeShippingGroup;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -23,6 +24,8 @@ class SettingsController extends Controller
             $thresholdCount = ShippingZones::configuredCount($settings?->free_shipping_thresholds);
             $shippingStatus .= "\n地域別送料無料基準：".($thresholdCount === 0 ? '設定なし' : $thresholdCount.'地域設定済み');
         }
+        $postalCodeGroupCount = PostalCodeShippingGroup::query()->count();
+        $shippingStatus .= "\n郵便番号別送料グループ：".($postalCodeGroupCount === 0 ? '設定なし' : $postalCodeGroupCount.'件設定済み');
 
         return Inertia::render('Admin/Settings/Index', [
             'cards' => [

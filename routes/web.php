@@ -13,6 +13,7 @@ use App\Http\Controllers\Admin\ProductGroupController;
 use App\Http\Controllers\Admin\PurchaseReceiptController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShipmentController;
+use App\Http\Controllers\Admin\PostalCodeShippingGroupController;
 use App\Http\Controllers\Admin\ShippingSettingController;
 use App\Http\Controllers\Admin\StockOperationController;
 use App\Http\Controllers\Admin\SupplierController;
@@ -100,6 +101,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::get('settings/shipping', [ShippingSettingController::class, 'edit'])->name('settings.shipping.edit');
     Route::put('settings/shipping', [ShippingSettingController::class, 'update'])->name('settings.shipping.update');
+    Route::post('settings/shipping/postal-code-groups', [PostalCodeShippingGroupController::class, 'store'])->name('settings.shipping.postal-code-groups.store');
+    Route::put('settings/shipping/postal-code-groups/{postalCodeGroup}', [PostalCodeShippingGroupController::class, 'update'])->name('settings.shipping.postal-code-groups.update');
+    Route::delete('settings/shipping/postal-code-groups/{postalCodeGroup}', [PostalCodeShippingGroupController::class, 'destroy'])->name('settings.shipping.postal-code-groups.destroy');
     Route::get('settings/fees', [FeeSettingController::class, 'edit'])->name('settings.fees.edit');
     Route::put('settings/fees', [FeeSettingController::class, 'update'])->name('settings.fees.update');
     Route::get('settings/bank-transfer', [BankTransferSettingController::class, 'edit'])->name('settings.bank-transfer.edit');

@@ -52,7 +52,7 @@ class ShippingSettingTest extends TestCase
         $this->actingAs(User::factory()->admin()->create())->get(route('admin.settings.index'))
             ->assertInertia(fn (Assert $page) => $page->has('cards', 3)
                 ->where('cards.0.title', '振込先設定')->where('cards.1.title', '手数料設定')
-                ->where('cards.2.title', '送料設定')->where('cards.2.status', '送料が設定されていません')
+                ->where('cards.2.title', '送料設定')->where('cards.2.status', "送料が設定されていません\n郵便番号別送料グループ：設定なし")
                 ->where('cards.2.href', route('admin.settings.shipping.edit', [], false)));
         $this->get(route('admin.settings.shipping.edit'))->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Settings/Shipping')->has('zones', 8)
@@ -91,7 +91,7 @@ class ShippingSettingTest extends TestCase
         $this->get(route('admin.settings.shipping.edit'))->assertInertia(fn (Assert $page) => $page
             ->where('shippingZoneFees', $this->savedFees())->where('freeShippingThresholds', $this->savedThresholds()));
         $this->get(route('admin.settings.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：8地域設定済み"));
+            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：8地域設定済み\n郵便番号別送料グループ：設定なし"));
         $update = $this->input(['shipping_zone_fees' => ['hokkaido' => 1600]]);
         $this->put(route('admin.settings.shipping.update'), $update)->assertSessionHasNoErrors();
         $this->put(route('admin.settings.shipping.update'), $update)->assertSessionHasNoErrors();
@@ -108,7 +108,7 @@ class ShippingSettingTest extends TestCase
         $this->assertSame(array_fill_keys(ShippingZones::codes(), '0.0000'), OrderSetting::current()->shipping_zone_fees);
         $this->assertSame(array_fill_keys(ShippingZones::codes(), '0.0000'), OrderSetting::current()->free_shipping_thresholds);
         $this->get(route('admin.settings.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：8地域設定済み")->where('cards.2.warning', false));
+            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：8地域設定済み\n郵便番号別送料グループ：設定なし")->where('cards.2.warning', false));
     }
 
     public function test_regional_thresholds_can_be_cleared_and_unsent_regions_are_preserved(): void
@@ -142,7 +142,7 @@ class ShippingSettingTest extends TestCase
         ]))->assertSessionHasNoErrors();
         $this->assertSame(array_fill_keys(ShippingZones::codes(), null), OrderSetting::current()->free_shipping_thresholds);
         $this->get(route('admin.settings.index'))->assertInertia(fn (Assert $page) => $page
-            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：設定なし"));
+            ->where('cards.2.status', "8地域設定済み\n地域別送料無料基準：設定なし\n郵便番号別送料グループ：設定なし"));
     }
 
     #[TestWith(['shipping_zone_fees.hokkaido', -1])]
@@ -177,9 +177,9 @@ class ShippingSettingTest extends TestCase
         $missing = $this->input();
         unset($missing['shipping_zone_fees']['okinawa']);
         $this->put(route('admin.settings.shipping.update'), $missing)->assertSessionHasErrors('shipping_zone_fees.okinawa');
-        $this->put(route('admin.settings.shipping.update'), $this->input(['shipping_zone_fees' => ['islands' => 300]]))->assertSessionHasErrors('shipping_zone_fees');
+        $this->put(route('admin.settings.shipping.update'), $this->input(['shipping_zone_fees' => ['unknown' => 300]]))->assertSessionHasErrors('shipping_zone_fees');
         $this->put(route('admin.settings.shipping.update'), [])->assertSessionHasErrors('shipping_zone_fees');
-        $this->put(route('admin.settings.shipping.update'), $this->input(['free_shipping_thresholds' => ['islands' => 500]]))->assertSessionHasErrors('free_shipping_thresholds');
+        $this->put(route('admin.settings.shipping.update'), $this->input(['free_shipping_thresholds' => ['unknown' => 500]]))->assertSessionHasErrors('free_shipping_thresholds');
         $this->assertNull(OrderSetting::current()->shipping_zone_fees);
     }
 

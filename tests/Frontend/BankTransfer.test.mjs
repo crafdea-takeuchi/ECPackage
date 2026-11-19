@@ -146,7 +146,7 @@ const shippingZones = [
   { code: 'kyushu', name: '九州', prefectures: ['福岡県'] },
   { code: 'okinawa', name: '沖縄', prefectures: ['沖縄県'] },
 ];
-const shippingProps = { zones: shippingZones, shippingZoneFees: null, freeShippingThresholds: null, maxAmount: '999999999999999', saveUrl: '/admin/settings/shipping', settingsUrl: '/admin/settings' };
+const shippingProps = { zones: shippingZones, shippingZoneFees: null, freeShippingThresholds: null, postalCodeGroups: [], postalCodeGroupStoreUrl: '/admin/settings/shipping/postal-code-groups', maxAmount: '999999999999999', saveUrl: '/admin/settings/shipping', settingsUrl: '/admin/settings' };
 
 test('shipping form initially leaves eight fees and regional thresholds empty', async () => {
   const html = await renderPage(ShippingForm, shippingProps);
@@ -158,9 +158,21 @@ test('shipping form initially leaves eight fees and regional thresholds empty', 
     assert.doesNotMatch(html, new RegExp('id="free-shipping-' + zone.code + '"[^>]*required'));
   }
   assert.ok(!html.includes('id="free-shipping-threshold"'));
-  for (const text of ['山梨県・長野県', '新潟県', 'xl:table', 'xl:table-row', 'xl:table-cell', '現在のカート・購入手続き・注文金額には反映されません。']) assert.ok(html.includes(text), text);
+  for (const text of ['山梨県・長野県', '新潟県', 'xl:table', 'xl:table-row', 'xl:table-cell']) assert.ok(html.includes(text), text);
 });
 
+test('shipping form shows editable postal code shipping groups and a new-group form', async () => {
+  const html = await renderPage(ShippingForm, { ...shippingProps, postalCodeGroups: [{
+    id: 1, name: '特別配送地域A', shipping_fee: '2500.0000', free_shipping_threshold: '30000.0000',
+    postal_codes: ['1000101', '1000102'],
+    update_url: '/admin/settings/shipping/postal-code-groups/1',
+    delete_url: '/admin/settings/shipping/postal-code-groups/1',
+  }] });
+  for (const text of ['郵便番号別送料グループ', '特別配送地域A', '100-0101', '100-0102', '2件の郵便番号を登録済み', 'グループを削除', '郵便番号別送料グループを追加']) assert.ok(html.includes(text), text);
+  assert.match(html, /id="postal-code-fee-1"[^>]*value="2500"/);
+  assert.match(html, /id="postal-code-threshold-1"[^>]*value="30000"/);
+  assert.ok(html.includes('同じ郵便番号を複数のグループへ登録することはできません。'));
+});
 test('shipping form displays different regional thresholds and distinguishes blank from zero', async () => {
   const html = await renderPage(ShippingForm, { ...shippingProps,
     shippingZoneFees: { hokkaido: '1500.0000', tohoku: '0.0000' },

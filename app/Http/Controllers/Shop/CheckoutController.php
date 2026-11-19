@@ -50,6 +50,7 @@ class CheckoutController extends Controller
             'prefectures' => Order::PREFECTURES,
             'paymentMethods' => Order::PAYMENT_METHODS,
             'shippingFees' => $calculateShippingFee->forAllPrefectures($settings, $amounts['total']),
+            'postalCodeShippingFees' => $calculateShippingFee->forAllGroupPostalCodes($amounts['total']),
             'paymentFees' => ['cash_on_delivery' => $settings?->cash_on_delivery_fee ?? '0.0000'],
             'customerName' => $request->user()->name,
         ]);

@@ -18,6 +18,11 @@ class ProductImage extends Model
 
     protected $appends = ['url', 'thumbnail_url'];
 
+    public function group(): BelongsTo
+    {
+        return $this->belongsTo(ProductGroup::class, 'product_group_id');
+    }
+
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

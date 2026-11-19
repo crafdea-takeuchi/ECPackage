@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Products\ProductSchedule;
 use App\Models\ProductImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,8 @@ class ProductImageController extends Controller
     {
         $product = $productImage->product;
         $admin = $request->user()?->isAdmin() && $request->user()->hasVerifiedEmail();
-        abort_unless($admin || ($product->registration_status === 'confirmed' && $product->publication_status === 'public'), 404);
+        $public = $product ? ProductSchedule::visible($product, false) : $productImage->group?->products()->publiclyVisible()->exists();
+        abort_unless($admin || $public, 404);
         $disk = Storage::disk($productImage->disk);
         $path = $variant === 'thumbnail' ? $productImage->thumbnail_path : $productImage->path;
         abort_unless($disk->exists($path), 404);

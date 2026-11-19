@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Products\AdminProductStock;
+use App\Actions\Products\SyncProductImages;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductGroupRequest;
 use App\Models\ProductAttributeDefinition;
@@ -17,7 +19,33 @@ class ProductGroupController extends Controller
     public function index(): Response
     {
         return Inertia::render('Admin/ProductGroups/Index', [
-            'groups' => ProductGroup::withCount(['products', 'definitions'])->orderBy('name')->get(),
+            'groups' => ProductGroup::with(['definitions', 'images'])->withCount([
+                'products', 'definitions',
+                'products as public_products_count' => fn ($query) => $query->where('registration_status', 'confirmed')->where('publication_status', 'public'),
+                'products as private_products_count' => fn ($query) => $query->where('publication_status', 'private'),
+                'products as stocked_products_count' => fn ($query) => $query->whereIn('products.id', AdminProductStock::query()->whereRaw(AdminProductStock::expression().' > 0')->select('products.id')),
+            ])->withMin('products', 'default_sale_price')->withMax('products', 'default_sale_price')->orderBy('name')->get()
+                ->each(fn ($group) => $group->setAttribute('show_url', route('admin.product-groups.show', $group, false))->setAttribute('edit_url', route('admin.product-groups.edit', $group, false))),
+        ]);
+    }
+
+    public function show(ProductGroup $productGroup): Response
+    {
+        $products = AdminProductStock::query()->where('products.product_group_id', $productGroup->id)
+            ->with(['images', 'unit', 'taxRate', 'attributeValues.definition'])
+            ->orderBy('products.id')->paginate(20)->withQueryString();
+        $products->getCollection()->each(function ($product) use ($productGroup): void {
+            $product->setAttribute('edit_url', in_array($product->registration_status, ['provisional', 'confirmed'], true)
+                ? route('admin.products.edit', ['product' => $product, 'from_product_group_id' => $productGroup->id], false) : null);
+        });
+
+        return Inertia::render('Admin/ProductGroups/Show', [
+            'productGroup' => $productGroup->load(['definitions', 'images'])->loadCount('products'),
+            'products' => $products,
+            'indexUrl' => route('admin.product-groups.index', [], false),
+            'editUrl' => route('admin.product-groups.edit', $productGroup, false),
+            'createProductUrl' => $productGroup->status === 'active'
+                ? route('admin.products.create', ['product_group_id' => $productGroup->id, 'from_product_group_id' => $productGroup->id], false) : null,
         ]);
     }
 
@@ -28,24 +56,25 @@ class ProductGroupController extends Controller
 
     public function edit(ProductGroup $productGroup): Response
     {
-        return Inertia::render('Admin/ProductGroups/Form', ['productGroup' => $productGroup->load('definitions')]);
+        return Inertia::render('Admin/ProductGroups/Form', ['productGroup' => $productGroup->load(['definitions', 'images'])->loadCount('products'), 'showUrl' => route('admin.product-groups.show', $productGroup, false)]);
     }
 
-    public function store(ProductGroupRequest $request): RedirectResponse
+    public function store(ProductGroupRequest $request, SyncProductImages $images): RedirectResponse
     {
-        $group = DB::transaction(function () use ($request): ProductGroup {
+        $group = $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $images): ProductGroup {
             $group = ProductGroup::create($request->safe()->only(['name', 'description', 'status']));
             $this->syncDefinitions($request, $group);
+            $images->sync($group, $request->validated('images'));
 
             return $group;
-        }, 3);
+        }, 3));
 
         return to_route('admin.product-groups.edit', $group)->with('status', '基本商品を作成しました。');
     }
 
-    public function update(ProductGroupRequest $request, ProductGroup $productGroup): RedirectResponse
+    public function update(ProductGroupRequest $request, ProductGroup $productGroup, SyncProductImages $images): RedirectResponse
     {
-        DB::transaction(function () use ($request, $productGroup): void {
+        $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $productGroup, $images): void {
             $current = ProductGroup::whereKey($productGroup->id)->lockForUpdate()->firstOrFail();
             if ($current->lock_version !== (int) $request->validated('lock_version')) {
                 throw ValidationException::withMessages(['lock_version' => '別の画面で更新されています。再読み込みして内容を確認してください。']);
@@ -54,7 +83,8 @@ class ProductGroupController extends Controller
             $current->lock_version++;
             $current->save();
             $this->syncDefinitions($request, $current);
-        }, 3);
+            $images->sync($current, $request->validated('images'));
+        }, 3));
 
         return to_route('admin.product-groups.edit', $productGroup)->with('status', '基本商品を保存しました。');
     }

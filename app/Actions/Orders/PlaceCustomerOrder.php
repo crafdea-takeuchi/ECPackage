@@ -2,6 +2,7 @@
 
 namespace App\Actions\Orders;
 
+use App\Actions\Products\ProductSchedule;
 use App\Models\Order;
 use App\Models\OrderLine;
 use App\Models\Product;
@@ -26,13 +27,14 @@ class PlaceCustomerOrder
 
         return DB::transaction(function () use ($customer, $cart, $notes, $shippingAddress, $paymentMethod): Order {
             $products = Product::whereIn('id', array_keys($cart))
-                ->where('registration_status', 'confirmed')
-                ->where('publication_status', 'public')
-                ->whereNotNull('default_sale_price')
                 ->with(['unit:id,name,quantity_scale', 'taxRate:id,name,rate'])
-                ->get()->keyBy('id');
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
             if ($products->count() !== count($cart)) {
                 throw ValidationException::withMessages(['cart' => '購入できない商品が含まれています。カートを確認してください。']);
+            }
+
+            foreach ($products as $product) {
+                ProductSchedule::ensurePurchasable($product);
             }
 
             $order = new Order(['customer_id' => $customer->id, 'ordered_on' => today()->format('Y-m-d'), 'notes' => $notes, ...$shippingAddress, 'payment_method' => $paymentMethod]);

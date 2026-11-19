@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\Products\ProductImageInput;
+use App\Actions\Products\ProductSchedule;
 use App\Models\Product;
 use App\Models\ProductGroup;
 use App\Models\Unit;
@@ -46,12 +48,9 @@ class ProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'images_present' => ['sometimes', 'boolean'],
-            'images' => ['sometimes', 'array', 'list', 'max:5'],
-            'images.*' => ['array:id,file,alt_text'],
-            'images.*.id' => ['nullable', 'integer', Rule::exists('product_images', 'id')->where('product_id', $this->route('product')?->id ?? 0)],
-            'images.*.file' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120', 'dimensions:max_width=6000,max_height=6000'],
-            'images.*.alt_text' => ['nullable', 'string', 'max:200'],
+            ...array_fill_keys(array_keys(ProductSchedule::FIELDS), ['nullable', 'string', 'max:19']),
+            'from_product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')],
+            ...ProductImageInput::rules('product_id', $this->route('product')?->id, 5),
             'product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')],
             'attribute_values' => ['sometimes', 'array', 'max:20'],
             'attribute_values.*' => ['nullable', 'string', 'max:255'],
@@ -77,6 +76,14 @@ class ProductRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            $values = array_replace(ProductSchedule::formValues($this->route('product')), $this->only(array_keys(ProductSchedule::FIELDS)));
+            foreach (ProductSchedule::errors($values) as $field => $message) {
+                $validator->errors()->add($field, $message);
+            }
+        }, function (Validator $validator): void {
+            if (! $this->route('product') && $this->filled('from_product_group_id') && (int) $this->input('from_product_group_id') !== (int) $this->input('product_group_id')) {
+                $validator->errors()->add('product_group_id', '選択済みの基本商品を確認してください。');
+            }
             $groupId = $this->input('product_group_id');
             $values = $this->input('attribute_values', []);
             if (! $groupId) {
@@ -114,7 +121,7 @@ class ProductRequest extends FormRequest
             }
             if ($this->input('registration_status') === 'confirmed') {
                 foreach ($definitions->where('is_required', true) as $definition) {
-                    if (($values[$definition->id] ?? '') === '') {
+                    if (trim((string) ($values[$definition->id] ?? '')) === '') {
                         $validator->errors()->add("attribute_values.$definition->id", $definition->name.'を入力してください。');
                     }
                 }

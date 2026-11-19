@@ -161,7 +161,7 @@ class CustomerShoppingTest extends TestCase
 
         $context['product']->update(['publication_status' => 'private']);
         $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '1'])
-            ->assertSessionHasErrors(['product_id' => '現在購入できる商品を選び直してください。']);
+            ->assertSessionHasErrors(['product_id' => $context['product']->name.'：現在非公開の商品です。']);
         $this->assertNull(session('cart'));
     }
 

@@ -2,7 +2,10 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Products\AdminProductStock;
+use App\Actions\Products\ProductSchedule;
 use App\Actions\Products\SyncProductImages;
+use App\Actions\Products\ValidateProductVariant;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
 use App\Models\Category;
@@ -27,6 +30,8 @@ class ProductController extends Controller
     {
         $filters = $request->validate([
             'product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')],
+            'ungrouped' => ['nullable', 'boolean'],
+            'availability' => ['nullable', Rule::in(['available', 'sold_out', 'backorder'])],
             'attribute_definition_id' => ['nullable', 'integer', Rule::exists('product_attribute_definitions', 'id')],
             'attribute_value' => ['nullable', 'string', 'max:255'],
             'category_id' => ['nullable', 'integer', Rule::exists('categories', 'id')],
@@ -36,9 +41,20 @@ class ProductController extends Controller
             'publication_status' => ['nullable', Rule::in(['private', 'public'])],
             'kind' => ['nullable', Rule::in(['single', 'bundle'])],
         ]);
-        $query = Product::query()->with(['images', 'unit:id,name', 'categories:id,name', 'group:id,name', 'attributeValues.definition:id,name']);
+        $query = AdminProductStock::query()->with(['images', 'unit:id,name', 'categories:id,name', 'group:id,name', 'attributeValues.definition:id,name']);
         if ($filters['product_group_id'] ?? null) {
             $query->where('product_group_id', $filters['product_group_id']);
+        }
+        if ($filters['ungrouped'] ?? false) {
+            $query->whereNull('products.product_group_id');
+        }
+        if (($filters['availability'] ?? null) === 'available') {
+            $query->whereRaw(AdminProductStock::expression().' > 0');
+        } elseif (in_array($filters['availability'] ?? null, ['sold_out', 'backorder'], true)) {
+            $query->whereRaw(AdminProductStock::expression().' <= 0');
+            if ($filters['availability'] === 'backorder') {
+                $query->where('products.shortage_policy', 'backorder');
+            }
         }
         if ($filters['attribute_definition_id'] ?? null) {
             $query->whereHas('attributeValues', function ($values) use ($filters): void {
@@ -66,7 +82,15 @@ class ProductController extends Controller
         }
 
         return Inertia::render('Admin/Products/Index', [
-            'products' => $query->latest('id')->paginate(20)->withQueryString(),
+            'products' => $query->latest('products.id')->paginate(20)->withQueryString()
+                ->through(function ($product) {
+                    if ($product->group) {
+                        $product->group->setAttribute('show_url', route('admin.product-groups.show', $product->group, false));
+                    }
+
+                    return $product;
+                }),
+            'indexUrl' => route('admin.products.index', [], false),
             'filters' => $filters,
             'categories' => Category::treeOptions(),
             'groups' => $this->groups(),
@@ -75,22 +99,34 @@ class ProductController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('Admin/Products/Form', ['product' => null, 'componentProducts' => $this->componentProducts(), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates()]);
+        $data = $request->validate([
+            'product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')->where('status', 'active')],
+            'from_product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')->where('status', 'active')],
+        ]);
+        $groupId = $data['product_group_id'] ?? null;
+        abort_if(isset($data['from_product_group_id']) && (int) $data['from_product_group_id'] !== (int) $groupId, 422);
+
+        return Inertia::render('Admin/Products/Form', ['scheduleValues' => ProductSchedule::formValues(null), 'product' => null, 'selectedGroupId' => $groupId, 'returnGroup' => isset($data['from_product_group_id']) ? $this->returnGroup((int) $data['from_product_group_id']) : null, 'saveUrl' => route('admin.products.store', [], false), 'componentProducts' => $this->componentProducts(), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates()]);
     }
 
-    public function edit(Product $product): Response
+    public function edit(Request $request, Product $product): Response
     {
         abort_unless(in_array($product->registration_status, ['provisional', 'confirmed'], true), 404);
 
-        return Inertia::render('Admin/Products/Form', ['componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates($product)]);
+        $data = $request->validate(['from_product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')]]);
+        abort_if(isset($data['from_product_group_id']) && (int) $data['from_product_group_id'] !== $product->product_group_id, 404);
+
+        return Inertia::render('Admin/Products/Form', ['scheduleValues' => ProductSchedule::formValues($product), 'returnGroup' => isset($data['from_product_group_id']) ? $this->returnGroup((int) $data['from_product_group_id']) : null, 'saveUrl' => route('admin.products.update', $product, false), 'componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates($product)]);
     }
 
     public function store(ProductRequest $request, SyncProductImages $images): RedirectResponse
     {
         $product = $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $images): Product {
-            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present']));
+            app(ValidateProductVariant::class)->lockGroup($request->integer('product_group_id') ?: null);
+            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
+            $product->fill(ProductSchedule::storageValues($request->validated()));
             $product->sku = $product->sku ?: 'P-'.Str::ulid();
             $product->created_by = $request->user()->id;
             if ($product->registration_status === 'confirmed') {
@@ -100,11 +136,16 @@ class ProductController extends Controller
             $this->persist($product);
             $this->syncCategories($request, $product);
             $this->syncAttributeValues($request, $product, null);
+            app(ValidateProductVariant::class)->validate($product);
             $this->syncBundleComponents($request, $product);
             $images->sync($product, $request->validated('images'));
 
             return $product;
         }, 3));
+
+        if ($request->validated('from_product_group_id')) {
+            return to_route('admin.product-groups.show', $request->validated('from_product_group_id'))->with('status', '販売商品を登録しました。');
+        }
 
         return to_route('admin.products.edit', $product)->with('status', $product->registration_status === 'confirmed' ? '販売商品を本登録しました。' : '販売商品を仮登録しました。');
     }
@@ -130,9 +171,11 @@ class ProductController extends Controller
                     throw ValidationException::withMessages(['unit_id' => '本登録後の単位は変更できません。']);
                 }
             }
+            app(ValidateProductVariant::class)->lockGroup($request->integer('product_group_id') ?: null, $current->product_group_id);
             $sku = $current->sku;
             $previousGroupId = $current->product_group_id;
-            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present']));
+            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
+            $current->fill(ProductSchedule::storageValues($request->validated()));
             $current->sku = $current->sku ?: $sku;
             if ($current->registration_status === 'confirmed' && ! $current->confirmed_at) {
                 $current->confirmed_by = $request->user()->id;
@@ -142,11 +185,23 @@ class ProductController extends Controller
             $this->persist($current);
             $this->syncCategories($request, $current);
             $this->syncAttributeValues($request, $current, $previousGroupId);
+            app(ValidateProductVariant::class)->validate($current);
             $this->syncBundleComponents($request, $current);
             $images->sync($current, $request->validated('images'));
         }, 3));
 
+        if ($request->validated('from_product_group_id')) {
+            return to_route('admin.product-groups.show', $request->validated('from_product_group_id'))->with('status', '販売商品を保存しました。');
+        }
+
         return to_route('admin.products.edit', $product)->with('status', '販売商品を保存しました。');
+    }
+
+    private function returnGroup(int $id): array
+    {
+        $group = ProductGroup::findOrFail($id);
+
+        return ['id' => $group->id, 'name' => $group->name, 'url' => route('admin.product-groups.show', $group, false)];
     }
 
     private function componentProducts(?Product $product = null): mixed

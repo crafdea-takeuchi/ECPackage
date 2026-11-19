@@ -51,7 +51,7 @@ class ListShopProductGroups
         $groupIds = $page->getCollection()->pluck('product_group_id')->filter()->all();
         $singleIds = $page->getCollection()->pluck('standalone_id')->filter()->all();
         $members = (clone $matching)->where(fn (Builder $query) => $query->whereIn('products.product_group_id', $groupIds)->orWhereIn('products.id', $singleIds))
-            ->with(['group:id,name', 'images', 'taxRate:id,name,rate', 'unit:id,name,code,quantity_scale', 'categories:id,name',
+            ->with(['group:id,name', 'group.images', 'images', 'taxRate:id,name,rate', 'unit:id,name,code,quantity_scale', 'categories:id,name',
                 'attributeValues.definition:id,name,sort_order,status', 'bundleComponents.componentProduct.unit:id,name,quantity_scale'])
             ->orderBy('products.name')->orderBy('products.id')->get()->groupBy(fn (Product $product): string => $this->key($product->product_group_id, $product->id));
         $page->setCollection($page->getCollection()->map(fn (Product $row): array => $this->card($members->get($this->key($row->product_group_id, $row->standalone_id)))));
@@ -65,7 +65,7 @@ class ListShopProductGroups
         $bundles = DB::table('product_bundle_components as component')->leftJoinSub(clone $stock, 'component_stock', 'component_stock.product_id', '=', 'component.component_product_id')
             ->select('component.bundle_product_id')->selectRaw('MIN(FLOOR(COALESCE(component_stock.quantity, 0) / component.quantity)) AS quantity')->groupBy('component.bundle_product_id');
 
-        return Product::query()->where('products.registration_status', 'confirmed')->where('products.publication_status', 'public')->whereNotNull('products.default_sale_price')
+        return Product::query()->publiclyVisible()
             ->leftJoinSub($stock, 'stock', 'stock.product_id', '=', 'products.id')
             ->leftJoinSub($bundles, 'bundle_stock', 'bundle_stock.bundle_product_id', '=', 'products.id')
             ->select('products.*')->selectRaw("CASE WHEN products.kind = 'bundle' THEN COALESCE(bundle_stock.quantity, 0) ELSE COALESCE(stock.quantity, 0) END AS available_quantity");
@@ -105,6 +105,8 @@ class ListShopProductGroups
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
+                'sale_status' => $product->sale_status,
+                'purchase_unavailable_reason' => $product->purchase_unavailable_reason,
                 'unit' => $product->unit->toArray(),
                 'available_quantity' => $product->available_quantity + 0,
                 'shortage_policy' => $product->shortage_policy,
@@ -117,7 +119,7 @@ class ListShopProductGroups
             'price_including_tax' => $prices->first(),
             'max_price_including_tax' => $prices->last(),
             'has_price_range' => bccomp($prices->first(), $prices->last(), 4) !== 0,
-            'images' => $imageProduct?->images->toArray() ?? [],
+            'images' => $first->group?->images->isNotEmpty() ? $first->group->images->toArray() : ($imageProduct?->images->toArray() ?? []),
             'available_quantity' => $first->available_quantity + 0,
             'stock_status' => $hasStock ? 'available' : ($backorder ? 'backorder' : 'sold_out'),
             'can_backorder' => $backorder,

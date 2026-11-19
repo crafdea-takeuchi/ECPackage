@@ -23,7 +23,7 @@ watch(() => props.products.data, products => {
 }, { immediate: true });
 const selectedFor = product => product.variants.find(variant => String(variant.id) === selections[product.group_key]);
 const chosen = product => product.variant_count === 1 ? product.variants[0] : selectedFor(product);
-const canOrder = variant => variant && (Number(variant.available_quantity) > 0 || variant.shortage_policy === 'backorder');
+const canOrder = variant => variant && !variant.purchase_unavailable_reason && (Number(variant.available_quantity) > 0 || variant.shortage_policy === 'backorder');
 const stockStatus = product => selectedFor(product) ? (Number(selectedFor(product).available_quantity) > 0 ? 'available' : (selectedFor(product).shortage_policy === 'backorder' ? 'backorder' : 'sold_out')) : product.stock_status;
 const detailId = product => chosen(product)?.id ?? product.id;
 const quantityStep = product => 1 / (10 ** Number(chosen(product)?.unit?.quantity_scale ?? 0));
@@ -106,7 +106,7 @@ function add(product) {
     <section class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
       <article v-for="product in products.data" :key="product.group_key" class="flex flex-col rounded-2xl border border-slate-200 bg-white p-6">
         <Link :href="`/shop/${detailId(product)}`" class="mb-4 block">
-          <ProductImage :image="selectedFor(product) ? selectedFor(product).images?.[0] : product.images?.[0]" :name="product.name" />
+          <ProductImage :image="product.images?.[0]" :name="product.name" />
         </Link>
 
         <div class="flex flex-wrap gap-2">
@@ -156,6 +156,7 @@ function add(product) {
               <label :for="`shop-quantity-${product.id}`" class="mb-2 block text-xs text-slate-500">数量</label>
               <input :id="`shop-quantity-${product.id}`" :value="quantities[chosen(product)?.id] ?? '1'" type="number" :min="quantityStep(product)" :step="quantityStep(product)" class="field" :disabled="!canOrder(chosen(product))" @input="chosen(product) && (quantities[chosen(product).id] = $event.target.value)">
             </div>
+            <p v-if="chosen(product)?.purchase_unavailable_reason" role="status" class="w-full text-sm text-amber-800">{{ chosen(product).purchase_unavailable_reason }}</p>
             <button type="button" class="btn-primary grow" :disabled="!canOrder(chosen(product)) || pending.productId === chosen(product)?.id" @click="add(product)">{{ pending.productId === chosen(product)?.id ? '追加中…' : 'カートに追加' }}</button>
           </div>
         </div>

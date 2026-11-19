@@ -19,6 +19,9 @@ class CheckoutController extends Controller
     {
         abort_if($request->user()->isAdmin(), 403);
         $cart = $loadCart->handle($request->session()->get('cart', []));
+        if ($cart['errors'] !== []) {
+            return to_route('cart.index')->withErrors(['cart' => implode(' ', $cart['errors'])]);
+        }
         if ($cart['items']->isEmpty()) {
             return to_route('cart.index')->with('status', 'カートに商品を追加してください。');
         }

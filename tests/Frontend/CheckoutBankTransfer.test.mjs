@@ -197,3 +197,10 @@ test('unknown postal codes and lookup failures ask for manual input without chan
   assert.ok(page.text().includes('お届け先の都道府県を選択すると表示します'));
   assert.equal(page.value('shipping-address-line1'), '');
 });
+
+test('checkout shows per-rate tax rows without an aggregate tax row', async (t) => {
+  const page = mount(t, { subtotal: '1000.0000', taxes: [{ name: '標準税率', rate: '10.00', taxable_amount: '1000.0000', tax_amount: '100.0000' }], taxAmount: '100.0000', total: '1100.0000' });
+  assert.ok(page.text().includes('標準税率（10%）対象 1,000 円'));
+  assert.ok(page.text().includes('消費税 100 円'));
+  assert.ok(!page.text().includes('消費税合計'));
+});

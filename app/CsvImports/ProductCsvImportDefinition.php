@@ -2,6 +2,7 @@
 
 namespace App\CsvImports;
 
+use App\Actions\Products\ProductSchedule;
 use App\Contracts\CsvImportDefinition;
 use App\Exceptions\CsvImportFormatException;
 use App\Models\Category;
@@ -74,12 +75,16 @@ class ProductCsvImportDefinition implements CsvImportDefinition
             self::GROUP,
             self::CATEGORIES,
             self::ATTRIBUTES,
+            ...array_values(ProductSchedule::FIELDS),
         ];
     }
 
     public function validateRow(array $row, int $rowNumber): array
     {
         $errors = [];
+        foreach (ProductSchedule::errors($this->periodData($row)) as $field => $message) {
+            $this->error($errors, ProductSchedule::FIELDS[$field], $message);
+        }
         $sku = strtoupper($this->value($row, self::SKU));
         $name = $this->value($row, self::NAME);
         $description = $this->value($row, self::DESCRIPTION);
@@ -160,6 +165,12 @@ class ProductCsvImportDefinition implements CsvImportDefinition
 
         foreach ($rows as $row) {
             $errors = [];
+            foreach (ProductSchedule::errors($this->periodData($row)) as $field => $message) {
+                $this->error($errors, ProductSchedule::FIELDS[$field], $message);
+            }
+            if ($errors !== []) {
+                throw new CsvImportFormatException('公開・販売期間の再検証に失敗しました: '.implode(' ', array_column($errors, 'message')));
+            }
             $categoryIds = $this->resolveCategoryIds($this->value($row, self::CATEGORIES), $errors);
 
             if ($errors !== []) {
@@ -174,6 +185,7 @@ class ProductCsvImportDefinition implements CsvImportDefinition
                 'sku' => strtoupper($this->value($row, self::SKU)),
                 'name' => $this->value($row, self::NAME),
                 'description' => $this->nullable($this->value($row, self::DESCRIPTION)),
+                ...ProductSchedule::storageValues($this->periodData($row)),
                 'kind' => 'single',
                 'product_group_id' => $group?->id,
                 'unit_id' => $this->unitMap()->get($this->value($row, self::UNIT)),
@@ -425,6 +437,16 @@ class ProductCsvImportDefinition implements CsvImportDefinition
     private function shortagePolicy(string $value): ?string
     {
         return ['販売停止' => 'reject', 'reject' => 'reject', '取り寄せ' => 'backorder', 'backorder' => 'backorder'][$value] ?? null;
+    }
+
+    private function periodData(array $row): array
+    {
+        $data = [];
+        foreach (ProductSchedule::FIELDS as $field => $label) {
+            $data[$field] = $this->nullable($this->value($row, $label));
+        }
+
+        return $data;
     }
 
     private function value(array $row, string $key): string

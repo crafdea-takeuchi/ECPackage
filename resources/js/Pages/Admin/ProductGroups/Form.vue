@@ -1,10 +1,13 @@
 <script setup>
 import { computed } from 'vue';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import ProductImageEditor from '../../../Components/ProductImageEditor.vue';
 import AdminLayout from '../../../Layouts/AdminLayout.vue';
-const props = defineProps({ productGroup: Object });
+const props = defineProps({ productGroup: Object, showUrl: String });
+const imageRows = () => (props.productGroup?.images ?? []).map(image => ({ ...image, file: null }));
 const makeAttribute = () => ({ id: null, name: '', code: '', input_type: 'text', options: [], options_text: '', is_required: false, sort_order: 0, status: 'active' });
 const form = useForm({
+  images: imageRows(), images_present: true,
   name: props.productGroup?.name ?? '', description: props.productGroup?.description ?? '', status: props.productGroup?.status ?? 'active', lock_version: props.productGroup?.lock_version ?? 0,
   attributes: props.productGroup?.definitions?.map(definition => ({ ...definition, options: definition.options ?? [], options_text: (definition.options ?? []).join('、') })) ?? [],
 });
@@ -16,9 +19,9 @@ function removeAttribute(index) {
 }
 function restoreAttribute(index) { form.attributes[index].status = 'active'; }
 function save() {
-  form.transform(data => ({ ...data, attributes: data.attributes.map(({ options_text, ...attribute }) => ({ ...attribute, options: attribute.input_type === 'select' ? options_text.split(/[、,\n]/).map(value => value.trim()).filter(Boolean) : [] })) }));
-  const options = { preserveScroll: true, onSuccess: () => { if (props.productGroup) { form.lock_version = props.productGroup.lock_version; form.attributes = props.productGroup.definitions.map(definition => ({ ...definition, options: definition.options ?? [], options_text: (definition.options ?? []).join('、') })); form.defaults(); } } };
-  if (props.productGroup) form.put(`/admin/product-groups/${props.productGroup.id}`, options);
+  form.transform(data => ({ ...data, ...(props.productGroup ? { _method: 'put' } : {}), images: data.images.map(row => ({ id: row.id ?? null, file: row.file, alt_text: row.alt_text || '' })), attributes: data.attributes.map(({ options_text, ...attribute }) => ({ ...attribute, options: attribute.input_type === 'select' ? options_text.split(/[、,\n]/).map(value => value.trim()).filter(Boolean) : [] })) }));
+  const options = { preserveScroll: true, onSuccess: () => { if (props.productGroup) { form.lock_version = props.productGroup.lock_version; form.images = imageRows(); form.attributes = props.productGroup.definitions.map(definition => ({ ...definition, options: definition.options ?? [], options_text: (definition.options ?? []).join('、') })); form.defaults(); } } };
+  if (props.productGroup) form.post(`/admin/product-groups/${props.productGroup.id}`, options);
   else form.post('/admin/product-groups', options);
 }
 </script>
@@ -27,8 +30,10 @@ function save() {
     <Head :title="productGroup ? '基本商品を編集' : '基本商品を追加'" />
     <Link href="/admin/product-groups" class="nav-link text-sm">← 基本商品一覧へ</Link>
     <div class="mt-5 mb-7"><p class="text-xs font-bold tracking-widest text-emerald-700">基本商品の詳細</p><h1 class="mt-3 text-3xl font-bold">{{ productGroup ? '基本商品を編集' : '基本商品を追加' }}</h1><p class="mt-3 text-sm text-slate-500">基本商品の共通情報と、販売商品に入力する属性を設定します。</p></div>
+    <Link v-if="showUrl" :href="showUrl" class="nav-link mb-5 inline-block">販売商品・バリエーションを確認</Link>
     <form @submit.prevent="save" class="space-y-6" novalidate>
       <div v-if="form.hasErrors" role="alert" class="rounded-xl bg-red-50 p-5 text-sm text-red-700"><p class="font-semibold">入力内容を確認してください。</p><ul class="mt-2 list-inside list-disc"><li v-for="(error, key) in form.errors" :key="key">{{ error }}</li></ul></div>
+      <p v-if="productGroup?.products_count && form.status === 'inactive'" role="alert" class="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">この基本商品には{{ productGroup.products_count }}件の販売商品があります。基本商品を無効化しても、販売商品の公開状態は変更されません。</p>
       <section class="grid gap-6 rounded-xl border border-slate-200 bg-white p-6 sm:p-8 lg:grid-cols-[2fr_1fr]">
         <div class="space-y-6"><div><label for="group-name" class="mb-2 block text-sm font-medium">基本商品名 <span class="ml-2 text-xs text-red-600">必須</span></label><input id="group-name" v-model="form.name" class="field" maxlength="150" placeholder="例：果汁グミ" /></div><div><label for="description" class="mb-2 block text-sm font-medium">説明</label><textarea id="description" v-model="form.description" class="field min-h-28" maxlength="2000" placeholder="この基本商品にまとめる販売商品の説明"></textarea></div></div>
         <div><label for="group-status" class="mb-2 block text-sm font-medium">状態</label><select id="group-status" v-model="form.status" class="field"><option value="active">有効</option><option value="inactive">無効</option></select><p class="mt-3 text-xs leading-6 text-slate-500">無効にすると、新しい商品には設定できません。既存商品との関連と属性値は保持されます。</p></div>
@@ -45,6 +50,7 @@ function save() {
           <div v-if="!form.attributes.length" class="rounded-lg bg-slate-50 p-8 text-center text-sm text-slate-500">属性が不要な基本商品は、空のまま保存できます。</div>
         </div>
       </section>
+      <ProductImageEditor v-model="form.images" :max-images="1" title="基本商品の代表画像" :disabled="form.processing" @reset="form.images = imageRows()" />
       <div class="flex justify-end"><button type="submit" class="btn-primary min-w-56" :disabled="form.processing">{{ form.processing ? '保存中…' : productGroup ? '変更を保存' : '基本商品を作成' }}</button></div>
     </form>
   </AdminLayout>

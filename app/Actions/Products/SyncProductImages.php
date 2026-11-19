@@ -3,6 +3,7 @@
 namespace App\Actions\Products;
 
 use App\Models\Product;
+use App\Models\ProductGroup;
 use Closure;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +43,7 @@ class SyncProductImages
     }
 
     /** Called inside the product transaction, after acquiring its row lock. */
-    public function sync(Product $product, ?array $images): void
+    public function sync(Product|ProductGroup $product, ?array $images): void
     {
         if ($images === null) {
             return;

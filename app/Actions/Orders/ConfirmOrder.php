@@ -3,6 +3,7 @@
 namespace App\Actions\Orders;
 
 use App\Actions\Inventory\RecordStockOperation;
+use App\Actions\Products\ProductSchedule;
 use App\Models\InventoryLot;
 use App\Models\Order;
 use App\Models\OrderLine;
@@ -38,6 +39,9 @@ class ConfirmOrder
             $allocationInputs = [];
             $lines = $current->lines()->with(['product.bundleComponents.componentProduct.unit'])->orderBy('line_number')->get();
             foreach ($lines as $line) {
+                if ($current->order_source === 'customer') {
+                    ProductSchedule::ensurePurchasable($line->product);
+                }
                 $requirements = $this->requirements($line);
                 foreach ($requirements as $requirement) {
                     $remaining = $requirement['required_quantity'];

@@ -24,6 +24,11 @@ class ProductGroup extends Model
         return $this->hasMany(ProductAttributeDefinition::class)->orderBy('sort_order')->orderBy('id');
     }
 
+    public function images(): HasMany
+    {
+        return $this->hasMany(ProductImage::class)->orderBy('id');
+    }
+
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\Products\ProductImageInput;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -15,6 +16,9 @@ class ProductGroupRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if ($this->boolean('images_present')) {
+            $this->merge(['images' => $this->input('images', [])]);
+        }
         $attributes = collect($this->input('attributes', []))->map(function ($attribute): mixed {
             if (! is_array($attribute)) {
                 return $attribute;
@@ -30,6 +34,7 @@ class ProductGroupRequest extends FormRequest
     public function rules(): array
     {
         return [
+            ...ProductImageInput::rules('product_group_id', $this->route('product_group')?->id, 1),
             'name' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
             'status' => ['required', Rule::in(['active', 'inactive'])],
@@ -72,6 +77,12 @@ class ProductGroupRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'images.max' => '基本商品の代表画像は1枚だけ登録できます。',
+            'images.*.id.exists' => 'この基本商品の画像を選び直してください。',
+            'images.*.file.image' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.mimes' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.max' => '画像は1枚5MB以内にしてください。',
+            'images.*.file.dimensions' => '画像は縦・横6000ピクセル以内にしてください。',
             'name.required' => '基本商品名を入力してください。',
             'name.max' => '基本商品名は150文字以内で入力してください。',
             'description.max' => '説明は2000文字以内で入力してください。',

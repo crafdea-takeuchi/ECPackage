@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Shop;
 
 use App\Actions\Orders\CalculateTaxes;
 use App\Actions\Products\ListShopProductGroups;
+use App\Actions\Products\ProductSchedule;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\Product;
@@ -32,12 +33,7 @@ class ShopController extends Controller
 
     public function show(Product $product, CalculateTaxes $calculateTaxes): Response
     {
-        abort_unless(
-            $product->registration_status === 'confirmed'
-            && $product->publication_status === 'public'
-            && $product->default_sale_price !== null,
-            404,
-        );
+        abort_unless(ProductSchedule::visible($product), 404);
 
         $product->load($this->detailRelations());
         $this->addShopAttributes($product, $calculateTaxes);
@@ -47,9 +43,7 @@ class ShopController extends Controller
         if ($product->product_group_id !== null) {
             $variants = Product::query()
                 ->where('product_group_id', $product->product_group_id)
-                ->where('registration_status', 'confirmed')
-                ->where('publication_status', 'public')
-                ->whereNotNull('default_sale_price')
+                ->publiclyVisible()
                 ->with($this->detailRelations())
                 ->orderBy('name')->orderBy('id')
                 ->get()
@@ -77,6 +71,7 @@ class ShopController extends Controller
             'taxRate:id,name,rate',
             'categories:id,name',
             'group:id,name,description',
+            'group.images',
             'attributeValues.definition:id,name,sort_order,status',
             'bundleComponents.componentProduct.images',
             'bundleComponents.componentProduct.inventoryLots',
@@ -90,6 +85,9 @@ class ShopController extends Controller
             ? $product->inventoryLots->where('current_quantity', '>', 0)->sum('current_quantity')
             : $product->availableQuantity();
         $product->unsetRelation('inventoryLots');
+        if ($product->images->isEmpty() && $product->group?->images->isNotEmpty()) {
+            $product->setRelation('images', $product->group->images);
+        }
 
         return $product
             ->setAttribute('available_quantity', $quantity)

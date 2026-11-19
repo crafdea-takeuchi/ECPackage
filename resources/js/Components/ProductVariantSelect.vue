@@ -5,7 +5,7 @@ const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4
 function label(variant) {
   const attributes = variant.attribute_values?.map(attribute => attribute.value).filter(Boolean).join(' / ');
   const availability = Number(variant.available_quantity) > 0 ? '在庫あり' : (variant.shortage_policy === 'backorder' ? '取り寄せ' : '在庫なし');
-  return `${attributes || variant.name} — ${money(variant.price_including_tax)}円（税込）— ${availability}`;
+  return `${attributes || variant.name} — ${money(variant.price_including_tax)}円（税込）— ${variant.purchase_unavailable_reason ? variant.sale_status : availability}`;
 }
 function select(event) {
   emit('update:modelValue', event.target.value);

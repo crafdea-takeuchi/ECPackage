@@ -17,7 +17,7 @@ const selectedVariantId = ref(String(props.product.id));
 const pending = ref(false);
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
 const available = computed(() => Number(props.product.available_quantity) > 0);
-const canOrder = computed(() => available.value || props.product.shortage_policy === 'backorder');
+const canOrder = computed(() => !props.product.purchase_unavailable_reason && (available.value || props.product.shortage_policy === 'backorder'));
 const quantityStep = computed(() => {
   const scale = Number(props.product.unit?.quantity_scale ?? 0);
 
@@ -32,6 +32,7 @@ function selectVariant() {
 }
 
 function addToCart() {
+  if (!canOrder.value || pending.value) return;
   pending.value = true;
   router.post('/cart', {
     product_id: props.product.id,
@@ -103,6 +104,7 @@ function addToCart() {
           </p>
         </div>
 
+        <p v-if="product.purchase_unavailable_reason" role="status" class="mt-5 rounded-lg bg-amber-50 p-4 text-sm text-amber-900">{{ product.purchase_unavailable_reason }}</p>
         <div class="mt-6 flex flex-wrap items-end gap-3">
           <div class="w-32">
             <label for="detail-quantity" class="mb-2 block text-xs text-slate-500">数量</label>

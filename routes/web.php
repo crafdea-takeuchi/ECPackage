@@ -83,7 +83,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     $registerCsvImportRoutes('stock-operations', 'stock-operations', 'stock_operations');
     $registerCsvImportRoutes('shipments', 'shipments', 'shipments');
     Route::resource('categories', CategoryController::class)->only(['index', 'create', 'store', 'edit', 'update']);
-    Route::resource('product-groups', ProductGroupController::class)->only(['index', 'create', 'store', 'edit', 'update']);
+    Route::resource('product-groups', ProductGroupController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
     Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('suppliers', SupplierController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('purchase-receipts', PurchaseReceiptController::class)->only(['index', 'create', 'store', 'edit', 'update']);

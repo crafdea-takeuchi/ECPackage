@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Actions\Products\ProductSchedule;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,11 +16,33 @@ class Product extends Model
 
     protected $dateFormat = 'Y-m-d H:i:s.u';
 
-    protected $fillable = ['sku', 'name', 'description', 'kind', 'product_group_id', 'unit_id', 'registration_status', 'publication_status', 'shortage_policy', 'default_sale_price', 'tax_rate_id'];
+    protected $fillable = ['sku', 'name', 'description', 'kind', 'product_group_id', 'unit_id', 'registration_status', 'publication_status', 'shortage_policy', 'default_sale_price', 'tax_rate_id', 'publication_starts_at', 'publication_ends_at', 'sale_starts_at', 'sale_ends_at'];
+
+    protected $appends = ['sale_state', 'sale_status', 'purchase_unavailable_reason'];
 
     protected function casts(): array
     {
-        return ['default_sale_price' => 'decimal:4', 'attributes' => 'array', 'confirmed_at' => 'datetime', 'lock_version' => 'integer'];
+        return ['default_sale_price' => 'decimal:4', 'attributes' => 'array', 'confirmed_at' => 'datetime', 'lock_version' => 'integer', 'publication_starts_at' => 'immutable_datetime', 'publication_ends_at' => 'immutable_datetime', 'sale_starts_at' => 'immutable_datetime', 'sale_ends_at' => 'immutable_datetime'];
+    }
+
+    public function scopePubliclyVisible(Builder $query): Builder
+    {
+        return ProductSchedule::visibleQuery($query);
+    }
+
+    public function getSaleStateAttribute(): string
+    {
+        return ProductSchedule::state($this);
+    }
+
+    public function getSaleStatusAttribute(): string
+    {
+        return ProductSchedule::LABELS[$this->sale_state];
+    }
+
+    public function getPurchaseUnavailableReasonAttribute(): ?string
+    {
+        return ProductSchedule::reason($this);
     }
 
     public function images(): HasMany

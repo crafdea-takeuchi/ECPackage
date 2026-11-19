@@ -1,7 +1,7 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue';
 
-const props = defineProps({ modelValue: { type: Array, default: () => [] }, disabled: Boolean });
+const props = defineProps({ modelValue: { type: Array, default: () => [] }, disabled: Boolean, maxImages: { type: Number, default: 5 }, title: { type: String, default: '商品画像' } });
 const emit = defineEmits(['update:modelValue', 'reset']);
 const error = ref('');
 const previews = new Set();
@@ -18,7 +18,7 @@ function add(event) {
   error.value = '';
   const files = Array.from(event.target.files || []);
   event.target.value = '';
-  if (props.modelValue.length + files.length > 5) { error.value = '商品画像は5枚以内で登録してください。'; return; }
+  if (props.modelValue.length + files.length > props.maxImages) { error.value = '画像は' + props.maxImages + '枚以内で登録してください。'; return; }
   if (!files.every(valid)) return;
   emit('update:modelValue', [...props.modelValue, ...files.map(file => ({ key: 'new-' + ++sequence, id: null, file, alt_text: '', preview: preview(file) }))]);
 }
@@ -49,8 +49,8 @@ onBeforeUnmount(() => previews.forEach(url => URL.revokeObjectURL(url)));
 
 <template>
   <fieldset :disabled="disabled" class="mt-8 min-w-0 border-t border-slate-200 pt-6">
-    <legend class="px-1 text-lg font-semibold">商品画像</legend>
-    <p class="mb-4 text-sm leading-6 text-slate-500">最大5枚、1枚5MBまで。JPEG・PNG・WebPに対応します。先頭が代表画像です。変更は商品を保存したときに反映されます。</p>
+    <legend class="px-1 text-lg font-semibold">{{ title }}</legend>
+    <p class="mb-4 text-sm leading-6 text-slate-500">最大{{ maxImages }}枚、1枚5MBまで。JPEG・PNG・WebPに対応します。先頭が代表画像です。変更は商品を保存したときに反映されます。</p>
     <p v-if="error" role="alert" class="mb-4 text-sm text-red-700">{{ error }}</p>
     <div class="grid gap-4 sm:grid-cols-2">
       <div v-for="(row, index) in modelValue" :key="row.key || row.id" class="rounded-xl border border-slate-200 p-4">
@@ -63,19 +63,19 @@ onBeforeUnmount(() => previews.forEach(url => URL.revokeObjectURL(url)));
           <input type="file" accept="image/jpeg,image/png,image/webp" class="mt-1 block w-full text-xs" @change="replace($event, index)" />
         </label>
         <div class="mt-4 flex flex-wrap gap-2">
-          <button type="button" class="rounded border px-3 py-2 text-xs disabled:opacity-40" :disabled="index === 0 || disabled" :aria-label="'画像' + (index + 1) + 'を前へ移動'" @click="move(index, -1)">前へ</button>
-          <button type="button" class="rounded border px-3 py-2 text-xs disabled:opacity-40" :disabled="index === modelValue.length - 1 || disabled" :aria-label="'画像' + (index + 1) + 'を後へ移動'" @click="move(index, 1)">後へ</button>
+          <button v-if="maxImages > 1" type="button" class="rounded border px-3 py-2 text-xs disabled:opacity-40" :disabled="index === 0 || disabled" :aria-label="'画像' + (index + 1) + 'を前へ移動'" @click="move(index, -1)">前へ</button>
+          <button v-if="maxImages > 1" type="button" class="rounded border px-3 py-2 text-xs disabled:opacity-40" :disabled="index === modelValue.length - 1 || disabled" :aria-label="'画像' + (index + 1) + 'を後へ移動'" @click="move(index, 1)">後へ</button>
           <button type="button" class="rounded border border-red-200 px-3 py-2 text-xs text-red-700" :aria-label="'画像' + (index + 1) + 'を削除'" @click="remove(index)">削除</button>
         </div>
       </div>
     </div>
     <p v-if="!modelValue.length" class="rounded-lg bg-slate-50 p-5 text-sm text-slate-500">画像は未登録です。画像なしでも保存できます。</p>
     <div class="mt-5 space-y-4">
-      <label v-if="modelValue.length < 5" class="inline-block">
-        <input type="file" multiple accept="image/jpeg,image/png,image/webp" class="peer sr-only" :disabled="disabled" @change="add" />
+      <label v-if="modelValue.length < maxImages" class="inline-block">
+        <input type="file" :multiple="maxImages > 1" accept="image/jpeg,image/png,image/webp" class="peer sr-only" :disabled="disabled" @change="add" />
         <span class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-100 hover:text-indigo-900 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-600 peer-disabled:pointer-events-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
           <span aria-hidden="true" class="text-lg leading-none">＋</span>
-          画像を追加
+          画像を選択
         </span>
       </label>
       <button type="button" class="nav-link text-sm" @click="reset">画像の変更を取り消す</button>

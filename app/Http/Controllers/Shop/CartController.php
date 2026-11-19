@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Shop;
 
 use App\Actions\Cart\LoadCart;
 use App\Actions\Orders\CalculateTaxes;
+use App\Actions\Products\ProductSchedule;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CartItemRequest;
 use App\Models\Product;
@@ -25,6 +26,7 @@ class CartController extends Controller
 
         return Inertia::render('Cart/Index', [
             'items' => $cart['items'],
+            'cartErrors' => $cart['errors'],
             'subtotal' => $amounts['subtotal'],
             'taxes' => $amounts['taxes'],
             'taxAmount' => $amounts['tax_amount'],
@@ -66,6 +68,7 @@ class CartController extends Controller
 
     private function ensureAvailable(Product $product, string $quantity): void
     {
+        ProductSchedule::ensurePurchasable($product, 'product_id');
         $available = $product->availableQuantity();
         if ($product->shortage_policy !== 'backorder' && bccomp($quantity, $available, 4) === 1) {
             throw ValidationException::withMessages(['quantity' => "在庫数（{$available}）を超える数量はカートに入れられません。"]);

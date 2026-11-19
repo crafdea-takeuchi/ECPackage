@@ -2,6 +2,7 @@
 
 namespace App\Actions\Cart;
 
+use App\Actions\Products\ProductSchedule;
 use App\Models\Product;
 use Illuminate\Support\Collection;
 
@@ -14,19 +15,26 @@ class LoadCart
             ->with(['images', 'unit:id,name,code,quantity_scale', 'taxRate:id,name,rate', 'categories:id,name', 'bundleComponents.componentProduct.inventoryLots'])
             ->withSum(['inventoryLots as available_quantity' => fn ($query) => $query->where('current_quantity', '>', 0)], 'current_quantity')
             ->get()->keyBy('id');
+        $errors = [];
         $total = '0';
-        $items = collect($cart)->map(function ($quantity, $productId) use ($products, &$total): ?array {
+        $items = collect($cart)->map(function ($quantity, $productId) use ($products, &$total, &$errors): ?array {
             $product = $products->get((int) $productId);
             if (! $product) {
+                $errors[] = '商品（ID: '.$productId.'）が見つかりません。カートを確認してください。';
+
                 return null;
             }
             $product->setAttribute('available_quantity', $product->availableQuantity());
+            $reason = ProductSchedule::reason($product);
+            if ($reason) {
+                $errors[] = $product->name.'：'.$reason;
+            }
             $amount = $product->default_sale_price === null ? '0.0000' : bcmul((string) $quantity, (string) $product->default_sale_price, 4);
             $total = bcadd($total, $amount, 4);
 
-            return ['product' => $product, 'quantity' => (string) $quantity, 'amount' => $amount];
+            return ['product' => $product, 'quantity' => (string) $quantity, 'amount' => $amount, 'purchase_error' => $reason];
         })->filter()->values();
 
-        return compact('items', 'total');
+        return compact('items', 'total', 'errors');
     }
 }

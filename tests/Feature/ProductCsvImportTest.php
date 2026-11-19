@@ -66,7 +66,7 @@ class ProductCsvImportTest extends TestCase
                 ->component('Admin/Products/CsvImports/Create')
                 ->where('context.type', 'products')
                 ->where('context.template_available', true)
-                ->has('context.fields', 12)
+                ->has('context.fields', 16)
                 ->where('context.fields.0.name', '商品コード')
                 ->where('context.fields.0.requirement', '必須')
                 ->where('context.fields.10.requirement', '任意')
@@ -83,7 +83,7 @@ class ProductCsvImportTest extends TestCase
 
         $this->assertStringStartsWith("\xEF\xBB\xBF", $content);
         $this->assertSame(
-            "商品コード,商品名,商品説明,単位コード,登録状態,公開状態,在庫不足時,標準販売単価,税率コード,基本商品,商品分類,属性\n",
+            "商品コード,商品名,商品説明,単位コード,登録状態,公開状態,在庫不足時,標準販売単価,税率コード,基本商品,商品分類,属性,公開開始日時,公開終了日時,販売開始日時,販売終了日時\n",
             substr($content, 3),
         );
     }

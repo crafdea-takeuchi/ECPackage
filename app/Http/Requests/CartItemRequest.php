@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Actions\Products\ProductSchedule;
 use App\Models\Product;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -34,8 +35,8 @@ class CartItemRequest extends FormRequest
                 return;
             }
             $product = $this->route('product') ?? Product::with('unit:id,quantity_scale')->find($this->integer('product_id'));
-            if (! $product || $product->registration_status !== 'confirmed' || $product->publication_status !== 'public' || $product->default_sale_price === null) {
-                $validator->errors()->add('product_id', '現在購入できる商品を選び直してください。');
+            if (! $product || ProductSchedule::reason($product) !== null) {
+                $validator->errors()->add('product_id', $product ? $product->name.'：'.ProductSchedule::reason($product) : '現在購入できる商品を選び直してください。');
 
                 return;
             }

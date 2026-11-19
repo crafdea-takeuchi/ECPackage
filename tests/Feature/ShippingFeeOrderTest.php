@@ -6,6 +6,7 @@ use App\Actions\Orders\ShippingZones;
 use App\Models\InventoryLot;
 use App\Models\Order;
 use App\Models\OrderSetting;
+use App\Models\PostalCodeShippingGroup;
 use App\Models\Product;
 use App\Models\TaxRate;
 use App\Models\User;
@@ -145,6 +146,76 @@ class ShippingFeeOrderTest extends TestCase
         $order = Order::sole();
         $this->assertSame('0.0000', $order->shipping_fee);
         $this->assertSame('1100.0000', $order->total);
+    }
+
+    private function postalCodeGroup(string $fee, ?string $threshold, array $postalCodes): PostalCodeShippingGroup
+    {
+        $group = PostalCodeShippingGroup::create(['name' => '離島'.$fee, 'shipping_fee' => $fee, 'free_shipping_threshold' => $threshold]);
+        foreach ($postalCodes as $postalCode) {
+            $group->postalCodes()->create(['postal_code' => $postalCode]);
+        }
+
+        return $group;
+    }
+
+    public function test_postal_code_group_fee_takes_priority_over_prefecture_fee(): void
+    {
+        $context = $this->context();
+        $this->configureShipping($this->zoneFees(), ['kanto_shinetsu' => '1000.0000']);
+        $this->postalCodeGroup('3000.0000', null, ['1000001']);
+
+        $this->actingAs($context['customer'])->withSession(['cart' => [$context['product']->id => '1']])
+            ->post('/checkout', $this->checkoutInput('東京都'))
+            ->assertSessionHasNoErrors();
+
+        $order = Order::sole();
+        $this->assertSame('3000.0000', $order->shipping_fee, '県別の送料無料基準額（1,000円）は適用されない');
+        $this->assertSame('4100.0000', $order->total);
+    }
+
+    #[TestWith(['2', '0.0000'])]
+    #[TestWith(['1', '3000.0000'])]
+    public function test_postal_code_group_uses_its_own_free_shipping_threshold(string $quantity, string $expectedFee): void
+    {
+        $context = $this->context();
+        $this->configureShipping($this->zoneFees());
+        $this->postalCodeGroup('3000.0000', '2200.0000', ['1000001']);
+
+        $this->actingAs($context['customer'])->withSession(['cart' => [$context['product']->id => $quantity]])
+            ->post('/checkout', $this->checkoutInput('東京都'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($expectedFee, Order::sole()->shipping_fee);
+    }
+
+    public function test_postal_code_outside_groups_falls_back_to_prefecture_fee(): void
+    {
+        $context = $this->context();
+        $this->configureShipping($this->zoneFees());
+        $this->postalCodeGroup('3000.0000', null, ['9071801']);
+
+        $this->actingAs($context['customer'])->withSession(['cart' => [$context['product']->id => '1']])
+            ->post('/checkout', $this->checkoutInput('東京都'))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('800.0000', Order::sole()->shipping_fee);
+    }
+
+    public function test_checkout_page_provides_fees_for_group_postal_codes(): void
+    {
+        $context = $this->context();
+        $this->configureShipping($this->zoneFees());
+        $this->postalCodeGroup('3000.0000', '2000.0000', ['9071801', '9071800']);
+        $this->postalCodeGroup('500.0000', null, ['1000001']);
+
+        $this->actingAs($context['customer'])->withSession(['cart' => [$context['product']->id => '2']])
+            ->get('/checkout')
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('postalCodeShippingFees', 3)
+                ->where('postalCodeShippingFees.9071801', '0.0000')
+                ->where('postalCodeShippingFees.9071800', '0.0000')
+                ->where('postalCodeShippingFees.1000001', '500.0000')
+                ->where('shippingFees.東京都', '800.0000'));
     }
 
     public function test_settings_changes_after_ordering_do_not_change_existing_shipping_fee(): void

@@ -73,7 +73,7 @@ class PlaceCustomerOrder
             }
             $amounts = $this->calculateTaxes->handle($lines);
             $settings = OrderSetting::whereKey(1)->sharedLock()->first();
-            $shippingFee = $this->calculateShippingFee->handle($settings, $shippingAddress['shipping_prefecture'], $amounts['total']);
+            $shippingFee = $this->calculateShippingFee->handle($settings, $shippingAddress['shipping_prefecture'], $amounts['total'], $shippingAddress['shipping_postal_code']);
             $paymentFee = $this->paymentFee($settings, $paymentMethod);
             $total = bcadd(bcadd($amounts['total'], $shippingFee, 4), $paymentFee, 4);
             if (bccomp($total, '999999999999999.9999', 4) === 1) {

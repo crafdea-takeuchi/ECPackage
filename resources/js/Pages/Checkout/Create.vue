@@ -5,16 +5,17 @@ import BankTransferInstructions from '../../Components/BankTransferInstructions.
 import ProductImage from '../../Components/ProductImage.vue';
 import AppLayout from '../../Layouts/AppLayout.vue';
 
-const props = defineProps({ items: Array, subtotal: String, taxes: Array, taxAmount: String, total: String, prefectures: Array, paymentMethods: Object, paymentFees: { type: Object, default: () => ({}) }, shippingFees: { type: Object, default: () => ({}) }, customerName: String, bankTransfer: Object });
+const props = defineProps({ items: Array, subtotal: String, taxes: Array, taxAmount: String, total: String, prefectures: Array, paymentMethods: Object, paymentFees: { type: Object, default: () => ({}) }, shippingFees: { type: Object, default: () => ({}) }, postalCodeShippingFees: { type: Object, default: () => ({}) }, customerName: String, bankTransfer: Object });
 const form = useForm({ shipping_name: props.customerName ?? '', shipping_postal_code: '', shipping_prefecture: '', shipping_address_line1: '', shipping_address_line2: '', payment_method: Object.keys(props.paymentMethods ?? {})[0] ?? '', notes: '' });
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
 const paymentFee = computed(() => props.paymentFees?.[form.payment_method] ?? null);
-const shippingFee = computed(() => props.shippingFees?.[form.shipping_prefecture] ?? null);
+const normalizedPostalCode = value => (value ?? '').replace(/[０-９]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0)).replace(/[-－ー‐]/g, '');
+// 郵便番号別送料グループに一致すれば、都道府県別の送料より優先する。
+const shippingFee = computed(() => props.postalCodeShippingFees?.[normalizedPostalCode(form.shipping_postal_code)] ?? props.shippingFees?.[form.shipping_prefecture] ?? null);
 const orderTotal = computed(() => (Number(props.total) || 0) + (Number(shippingFee.value) || 0) + (Number(paymentFee.value) || 0));
 
 const postalLookupMessage = ref('');
 let postalLookupController = null;
-const normalizedPostalCode = value => (value ?? '').replace(/[０-９]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0)).replace(/[-－ー‐]/g, '');
 async function lookupPostalCode(postalCode) {
   postalLookupController?.abort();
   postalLookupController = new AbortController();

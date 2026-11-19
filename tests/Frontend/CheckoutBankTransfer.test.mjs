@@ -204,3 +204,20 @@ test('checkout shows per-rate tax rows without an aggregate tax row', async (t) 
   assert.ok(page.text().includes('消費税 100 円'));
   assert.ok(!page.text().includes('消費税合計'));
 });
+
+test('postal code group fee overrides the prefecture fee while the postal code matches', async (t) => {
+  mockFetch(t, () => zipcloud([{ address1: '沖縄県', address2: '八重山郡竹富町', address3: '' }]));
+  const page = mount(t, {
+    total: '1000.0000', prefectures: ['東京都', '沖縄県'],
+    shippingFees: { 東京都: '800.0000', 沖縄県: '1500.0000' }, postalCodeShippingFees: { 9071801: '3000.0000' },
+  });
+  await page.set('shipping-prefecture', '東京都');
+  assert.ok(page.text().includes('1,800 円'));
+  await page.set('shipping-postal-code', '９０７－１８０１');
+  await settle();
+  assert.ok(page.text().includes('3,000 円'));
+  assert.ok(page.text().includes('4,000 円'));
+  await page.set('shipping-postal-code', '907-180');
+  assert.ok(!page.text().includes('4,000 円'));
+  assert.ok(page.text().includes('2,500 円'), '一致しなくなったら都道府県（沖縄県）の送料に戻る');
+});

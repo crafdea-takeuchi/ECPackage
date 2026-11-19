@@ -27,22 +27,32 @@ const postalError = form => Object.entries(form.errors).find(([key]) => key === 
 
 const createForm = useForm(values());
 const entries = ref([]);
+let groupsSnapshot = '';
 watch(() => props.groups, groups => {
+  const nextSnapshot = JSON.stringify(groups);
+  if (nextSnapshot === groupsSnapshot) return;
+  groupsSnapshot = nextSnapshot;
   entries.value = groups.map(group => ({ group, form: useForm(values(group)) }));
-}, { immediate: true });
+}, { immediate: true, deep: true });
 const deletingId = ref(null);
 
 function createGroup() {
   if (createForm.processing) return;
   createForm.transform(() => payload(createForm)).post(props.storeUrl, {
     preserveScroll: true,
-    onSuccess: () => createForm.reset(),
+    onSuccess: () => {
+      createForm.reset();
+      router.reload({ only: ['postalCodeGroups'], preserveScroll: true });
+    },
   });
 }
 
 function updateGroup(entry) {
   if (entry.form.processing) return;
-  entry.form.transform(() => payload(entry.form)).put(entry.group.update_url, { preserveScroll: true });
+  entry.form.transform(() => payload(entry.form)).put(entry.group.update_url, {
+    preserveScroll: true,
+    onSuccess: () => router.reload({ only: ['postalCodeGroups'], preserveScroll: true }),
+  });
 }
 
 function deleteGroup(entry) {

@@ -76,6 +76,13 @@ class PostalCodeShippingSettingTest extends TestCase
             'name' => '入力内重複', 'postal_codes' => ['100-0201', '1000201'],
         ]))->assertSessionHasErrors('postal_codes.1');
 
+        $group = PostalCodeShippingGroup::sole();
+        $this->put(route('admin.settings.shipping.postal-code-groups.update', $group), $this->input([
+            'name' => '変更失敗', 'postal_codes' => ['12345'],
+        ]))->assertSessionHasErrors('postal_codes.0');
+        $this->assertSame('特別配送地域A', $group->refresh()->name);
+        $this->assertSame(['1000101', '1000102'], $group->postalCodes()->pluck('postal_code')->all());
+
         $this->assertDatabaseCount('postal_code_shipping_groups', 1);
         $this->assertDatabaseCount('postal_code_shipping_postal_codes', 2);
     }

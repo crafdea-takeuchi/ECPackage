@@ -25,10 +25,7 @@ const isAdminPage = computed(() => page.url.split('?')[0].startsWith('/admin'));
           </template>
           <template v-else>
             <Link href="/login" class="nav-link">ログイン</Link>
-            <div class="flex flex-col items-center gap-1">
-              <span role="button" aria-disabled="true" class="btn-primary cursor-not-allowed opacity-50 hover:bg-emerald-800">新規登録</span>
-              <p class="text-xs font-semibold text-red-600">現在停止中です</p>
-            </div>
+            <Link href="/register" class="btn-primary">新規登録</Link>
           </template>
         </nav>
       </div>

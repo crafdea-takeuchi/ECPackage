@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\InventoryLot;
 use App\Models\Order;
+use App\Models\OrderBackorder;
 use App\Models\Product;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseReceipt;
@@ -14,6 +15,7 @@ use App\Models\User;
 use App\Notifications\BackorderReady;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Fixtures\BankTransfer;
 use Tests\TestCase;
 
@@ -57,6 +59,42 @@ class OrderLifecycleTest extends TestCase
         $this->assertSame('3.0000', $order->lines[0]->backordered_quantity);
         $this->assertEquals('2.0000', $order->lines[0]->allocations->sum('quantity'));
         $this->assertSame('0.0000', $context['lot']->fresh()->current_quantity);
+    }
+
+    public function test_new_backorder_is_unrequested_until_admin_marks_it_requested(): void
+    {
+        $context = $this->context('0', 'backorder');
+        $this->actingAs($context['admin'])->post('/admin/orders', $this->orderInput($context, '2'))->assertSessionHasNoErrors();
+
+        $backorder = OrderBackorder::sole();
+        $this->assertNull($backorder->requested_at);
+        $this->assertNull($backorder->requested_by);
+
+        $this->get(route('admin.backorders.index', ['status' => 'unrequested']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.status', 'unrequested')
+                ->where('counts.unrequested', 1)
+                ->where('counts.pending', 0)
+                ->has('lines.data', 1)
+                ->where('lines.data.0.id', $backorder->id));
+
+        $this->post(route('admin.backorders.mark-requested', $backorder))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', '取り寄せ依頼を依頼済みにしました。');
+
+        $backorder->refresh();
+        $this->assertNotNull($backorder->requested_at);
+        $this->assertSame($context['admin']->id, $backorder->requested_by);
+
+        $this->get(route('admin.backorders.index', ['status' => 'pending']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('counts.unrequested', 0)
+                ->where('counts.pending', 1)
+                ->has('lines.data', 1)
+                ->where('lines.data.0.requester.name', $context['admin']->name));
+
+        $this->post(route('admin.backorders.mark-requested', $backorder))
+            ->assertSessionHas('status', 'この取り寄せ依頼はすでに依頼済みです。');
     }
 
     public function test_cancel_returns_each_allocation_to_original_lot_and_keeps_audit_history(): void

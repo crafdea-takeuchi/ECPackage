@@ -8,11 +8,29 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class OrderBackorder extends Model
 {
-    protected $fillable = ['order_line_component_id', 'stock_product_id', 'stock_product_sku', 'stock_product_name', 'unit_name', 'required_quantity', 'initial_quantity', 'remaining_quantity', 'fulfilled_at'];
+    protected $fillable = [
+        'order_line_component_id',
+        'stock_product_id',
+        'stock_product_sku',
+        'stock_product_name',
+        'unit_name',
+        'required_quantity',
+        'initial_quantity',
+        'remaining_quantity',
+        'requested_at',
+        'requested_by',
+        'fulfilled_at',
+    ];
 
     protected function casts(): array
     {
-        return ['required_quantity' => 'decimal:4', 'initial_quantity' => 'decimal:4', 'remaining_quantity' => 'decimal:4', 'fulfilled_at' => 'datetime'];
+        return [
+            'required_quantity' => 'decimal:4',
+            'initial_quantity' => 'decimal:4',
+            'remaining_quantity' => 'decimal:4',
+            'requested_at' => 'datetime',
+            'fulfilled_at' => 'datetime',
+        ];
     }
 
     public function orderLine(): BelongsTo
@@ -28,6 +46,11 @@ class OrderBackorder extends Model
     public function stockProduct(): BelongsTo
     {
         return $this->belongsTo(Product::class, 'stock_product_id');
+    }
+
+    public function requester(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by');
     }
 
     public function allocations(): HasMany

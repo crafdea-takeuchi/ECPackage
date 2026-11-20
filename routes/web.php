@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\ShipmentController;
 use App\Http\Controllers\Admin\ShippingSettingController;
 use App\Http\Controllers\Admin\StockOperationController;
 use App\Http\Controllers\Admin\SupplierController;
+use App\Http\Controllers\Admin\SystemNameSettingController;
 use App\Http\Controllers\Admin\UserController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\RegistrationController;
@@ -100,6 +101,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::patch('orders/{order}/status', [OrderController::class, 'updateStatus'])->name('orders.status');
     Route::post('orders/{order}/cancel', [OrderController::class, 'cancel'])->name('orders.cancel');
     Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
+    Route::get('settings/system-name', [SystemNameSettingController::class, 'edit'])->name('settings.system-name.edit');
+    Route::put('settings/system-name', [SystemNameSettingController::class, 'update'])->name('settings.system-name.update');
     Route::get('settings/shipping', [ShippingSettingController::class, 'edit'])->name('settings.shipping.edit');
     Route::put('settings/shipping', [ShippingSettingController::class, 'update'])->name('settings.shipping.update');
     Route::post('settings/shipping/postal-code-groups', [PostalCodeShippingGroupController::class, 'store'])->name('settings.shipping.postal-code-groups.store');

@@ -14,6 +14,7 @@ class HandleInertiaRequests extends Middleware
         return [...parent::share($request),
             'auth' => ['user' => $request->user()?->only('id', 'name', 'email', 'role', 'email_verified_at')],
             'adminSettingsUrl' => $request->user()?->isAdmin() ? route('admin.settings.index', [], false) : null,
+            'systemName' => config('app.name'),
             'cart' => ['count' => count($request->session()->get('cart', []))],
             'flash' => ['status' => fn () => $request->session()->get('status')],
         ];

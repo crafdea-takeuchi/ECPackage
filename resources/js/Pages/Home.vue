@@ -9,9 +9,9 @@ const page = usePage();
     <section class="relative overflow-hidden rounded-3xl bg-emerald-950 px-8 py-16 text-white md:px-16 md:py-24">
       <div aria-hidden="true" class="absolute -right-20 -top-20 h-80 w-80 rounded-full border-[50px] border-white/5"></div>
       <div class="relative max-w-xl">
-        <p class="mb-5 text-xs font-semibold tracking-[.25em] text-emerald-300">WELCOME TO EC02</p>
+        <p class="mb-5 text-xs font-semibold tracking-[.25em] text-emerald-300">WELCOME TO {{ page.props.systemName }}</p>
         <h1 class="text-3xl font-semibold leading-relaxed md:text-5xl md:leading-snug">毎日に、<br>新しい楽しみを。</h1>
-        <p class="mt-6 max-w-md text-sm leading-8 text-emerald-100">{{ page.props.auth.user ? `${page.props.auth.user.name} さん、おかえりなさい。` : 'EC02へようこそ。アカウントを作成して、これから始まるお買い物に備えましょう。' }}</p>
+        <p class="mt-6 max-w-md text-sm leading-8 text-emerald-100">{{ page.props.auth.user ? `${page.props.auth.user.name} さん、おかえりなさい。` : `${page.props.systemName}へようこそ。アカウントを作成して、これから始まるお買い物に備えましょう。` }}</p>
         <div class="mt-9 flex flex-wrap items-start gap-3"><Link href="/shop" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-50">商品を見る →</Link>
           <template v-if="!page.props.auth.user"><Link href="/register" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950 hover:bg-emerald-50">新規登録する →</Link><Link href="/login" class="rounded-lg border border-white/40 px-6 py-3 text-sm hover:bg-white/10">ログイン</Link></template>
           <Link v-else-if="page.props.auth.user.role === 'admin'" href="/admin" class="rounded-lg bg-white px-6 py-3 text-sm font-semibold text-emerald-950">管理画面へ →</Link>

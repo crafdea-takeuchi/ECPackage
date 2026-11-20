@@ -12,7 +12,7 @@ const isAdminPage = computed(() => page.url.split('?')[0].startsWith('/admin'));
   <div class="min-h-screen bg-[#f6f7f4] text-slate-800" @keydown.esc.window="sidebarOpen = false">
     <header class="border-b border-slate-200 bg-white">
       <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-        <Link href="/" class="text-2xl font-bold tracking-tight text-emerald-900">EC<span class="font-normal text-slate-400">02</span></Link>
+        <Link href="/" class="text-2xl font-bold tracking-tight text-emerald-900">{{ page.props.systemName }}</Link>
         <nav aria-label="メインメニュー" class="flex flex-wrap items-center gap-5 text-sm">
           <Link href="/" class="nav-link">ホーム</Link>
           <Link href="/shop" class="nav-link">商品一覧</Link>
@@ -66,7 +66,7 @@ const isAdminPage = computed(() => page.url.split('?')[0].startsWith('/admin'));
       <slot />
     </main>
     <footer class="mx-auto flex max-w-6xl flex-wrap justify-between gap-4 px-6 py-8 text-xs text-slate-500">
-      <span>EC02 · あなたの毎日に、ちょうどいいものを。</span>
+      <span>{{ page.props.systemName }} · あなたの毎日に、ちょうどいいものを。</span>
     </footer>
   </div>
 </template>

@@ -40,6 +40,9 @@ class SettingsController extends Controller
                 ['title' => '送料設定', 'description' => '発送先の地域ごとの送料と、送料無料になる購入金額を設定します。',
                     'status' => $shippingStatus, 'warning' => $count !== 8,
                     'href' => route('admin.settings.shipping.edit', [], false), 'button' => '設定を開く'],
+                ['title' => 'システム名設定', 'description' => '画面と通知メールに表示するシステム名を設定します。',
+                    'status' => '現在のシステム名：'.($settings?->system_name ?? 'EC02'),
+                    'href' => route('admin.settings.system-name.edit', [], false), 'button' => '設定を開く'],
             ],
         ]);
     }

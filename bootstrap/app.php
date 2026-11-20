@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Orders\BankTransferDetails;
+use App\Http\Middleware\ApplySystemSettings;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,7 +15,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->web(append: [HandleInertiaRequests::class]);
+        $middleware->web(append: [ApplySystemSettings::class, HandleInertiaRequests::class]);
         $middleware->redirectGuestsTo(fn (Request $request) => route($request->is('admin*') ? 'admin.login' : 'login'));
         $middleware->redirectUsersTo(fn (Request $request) => route($request->user()?->isAdmin() ? 'admin.dashboard' : 'home'));
     })

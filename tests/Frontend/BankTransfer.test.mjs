@@ -13,6 +13,7 @@ const { default: Settings } = await server.ssrLoadModule('/resources/js/Pages/Ad
 const { default: ShippingForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/Shipping.vue');
 const { default: FeeForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/Fees.vue');
 const { default: BankForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/BankTransfer.vue');
+const { default: SystemNameForm } = await server.ssrLoadModule('/resources/js/Pages/Admin/Settings/SystemName.vue');
 after(() => server.close());
 
 const bank = { bank_name: 'テスト銀行', bank_code: '0001', branch_name: 'テスト支店', branch_code: '001', account_type: '普通', account_number: '001234567890', account_holder: 'テスト株式会社', account_holder_kana: 'テスト（カ', instructions: '注文番号を添えてください。' };
@@ -41,7 +42,7 @@ async function renderPage(component, props) {
   await createInertiaApp({
     page: { component: 'Test', url: '/admin/settings', version: null, props: {
       auth: { user: { id: 1, name: '管理者', role: 'admin', email_verified_at: '2026-11-16' } },
-      flash: { status: null }, cart: { count: 0 }, errors: {}, adminSettingsUrl: '/admin/settings', ...props,
+      flash: { status: null }, cart: { count: 0 }, errors: {}, adminSettingsUrl: '/admin/settings', systemName: 'EC02', ...props,
     } },
     render: () => '', resolve: () => component,
     setup: async ({ App, props: appProps, plugin }) => {
@@ -76,6 +77,18 @@ test('settings entry preserves admin menus and uses responsive cards without dea
   for (const hidden of ['単位管理', '税率管理', '在庫・期限設定', '準備中']) assert.ok(!html.includes(hidden), hidden);
   assert.ok(html.includes('****890'));
   assert.ok(!html.includes('001234567890'));
+});
+
+test('system name form shows the saved value and validation next to the text field', async () => {
+  const html = await renderPage(SystemNameForm, {
+    systemName: 'コクレアストア', saveUrl: '/admin/settings/system-name', settingsUrl: '/admin/settings',
+    errors: { system_name: 'システム名は100文字以内で入力してください。' },
+  });
+  assert.ok(html.includes('value="コクレアストア"'));
+  assert.match(html, /id="system-name"[^>]+type="text"/);
+  assert.match(html, /id="system-name"[^>]+maxlength="100"/);
+  assert.ok(html.includes('システム名は100文字以内で入力してください。'));
+  assert.ok(html.includes('system-name-error'));
 });
 
 test('bank form uses text inputs to preserve leading zeroes and places validation errors near fields', async () => {

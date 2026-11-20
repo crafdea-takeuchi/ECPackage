@@ -24,7 +24,7 @@ class PurchaseReceiptRequest extends FormRequest
             if (! is_array($line)) {
                 return $line;
             }
-            foreach (['lot_number', 'manufactured_on', 'expires_on', 'quantity', 'unit_purchase_price'] as $field) {
+            foreach (['manufactured_on', 'expires_on', 'quantity', 'unit_purchase_price'] as $field) {
                 if (in_array($field, ['manufactured_on', 'expires_on'], true) && ! is_scalar($line[$field] ?? null) && ($line[$field] ?? null) !== null) {
                     continue;
                 }
@@ -56,7 +56,6 @@ class PurchaseReceiptRequest extends FormRequest
             'lines.*.id' => ['nullable', 'integer', Rule::exists('purchase_receipt_lines', 'id')],
             'lines.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->whereIn('registration_status', ['provisional', 'confirmed'])],
             'lines.*.product_supplier_id' => ['required', 'integer', Rule::exists('product_suppliers', 'id')],
-            'lines.*.lot_number' => ['required', 'string', 'max:100'],
             ...ReceiptExpiration::rules('lines.*.', allowUntypedDate: true),
             'lines.*.quantity' => ['required', 'numeric', 'gt:0', 'max:999999999999999.9999', 'decimal:0,4'],
             'lines.*.unit_purchase_price' => ['required', 'numeric', 'min:0', 'max:999999999999999.9999', 'decimal:0,4'],
@@ -80,7 +79,6 @@ class PurchaseReceiptRequest extends FormRequest
             $lines = $this->input('lines', []);
             $products = Product::with('unit:id,quantity_scale')->whereIn('id', collect($lines)->pluck('product_id')->filter())->get()->keyBy('id');
             $settings = ProductSupplier::whereIn('id', collect($lines)->pluck('product_supplier_id')->filter())->get()->keyBy('id');
-            $seen = [];
             $existingLines = $receipt
                 ? PurchaseReceiptLine::where('purchase_receipt_id', $receipt->id)->get()->keyBy('id')
                 : collect();
@@ -94,12 +92,6 @@ class PurchaseReceiptRequest extends FormRequest
                 if (! $setting || $setting->supplier_id !== $supplierId || $setting->product_id !== $productId || $setting->status !== 'active') {
                     $validator->errors()->add("lines.$index.product_id", '選択した仕入先の有効な販売商品を選び直してください。');
                 }
-
-                $key = $productId.'|'.mb_strtolower(trim((string) ($line['lot_number'] ?? '')));
-                if ($productId && isset($seen[$key])) {
-                    $validator->errors()->add("lines.$index.lot_number", '同じ販売商品とロット番号が重複しています。');
-                }
-                $seen[$key] = true;
 
                 $quantity = (string) ($line['quantity'] ?? '');
                 $scale = $products->get($productId)?->unit?->quantity_scale;
@@ -146,8 +138,6 @@ class PurchaseReceiptRequest extends FormRequest
             'lines.*.product_id.exists' => '販売商品を選び直してください。',
             'lines.*.product_supplier_id.required' => '仕入商品設定を選び直してください。',
             'lines.*.product_supplier_id.exists' => '仕入商品設定を選び直してください。',
-            'lines.*.lot_number.required' => 'ロット番号を入力してください。',
-            'lines.*.lot_number.max' => 'ロット番号は100文字以内で入力してください。',
             'lines.*.manufactured_on.date_format' => '製造日を正しい日付で入力してください。',
             'lines.*.expiration_type.in' => '期限種別は「期限なし」「賞味期限」「消費期限」から選択してください。',
             'lines.*.expiration_type.string' => '期限種別を選び直してください。',

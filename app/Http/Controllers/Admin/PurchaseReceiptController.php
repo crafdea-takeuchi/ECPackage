@@ -34,7 +34,7 @@ class PurchaseReceiptController extends Controller
         $query = PurchaseReceipt::query()->with('supplier:id,code,name')->withCount('lines')->withSum('lines', 'purchase_amount');
         $term = trim((string) ($filters['q'] ?? ''));
         if ($term !== '') {
-            $query->where(fn ($receipt) => $receipt->where('receipt_number', 'like', '%'.$term.'%')->orWhereHas('lines', fn ($line) => $line->where('lot_number', 'like', '%'.$term.'%')));
+            $query->where('receipt_number', 'like', '%'.$term.'%');
         }
         if ($filters['supplier_id'] ?? null) {
             $query->where('supplier_id', $filters['supplier_id']);
@@ -142,10 +142,16 @@ class PurchaseReceiptController extends Controller
             $line->fill([
                 ...$input,
                 'line_number' => $index + 1,
+                'lot_number' => $line->exists ? $line->lot_number : $this->automaticLotNumber($receipt, $index + 1),
                 'purchase_amount' => bcmul((string) $input['quantity'], (string) $input['unit_purchase_price'], 4),
             ]);
             $receipt->lines()->save($line);
         }
+    }
+
+    private function automaticLotNumber(PurchaseReceipt $receipt, int $lineNumber): string
+    {
+        return sprintf('AUTO-%010d-%03d', $receipt->id, $lineNumber);
     }
 
     private function postReceipt(PurchaseReceipt $receipt, User $user, AllocateBackorders $allocateBackorders): void

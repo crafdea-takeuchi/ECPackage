@@ -39,7 +39,6 @@ class PurchaseReceiptManagementTest extends TestCase
             'lines' => [[
                 'product_id' => $product->id,
                 'product_supplier_id' => $setting->id,
-                'lot_number' => 'LOT-202610-A',
                 'manufactured_on' => '2026-10-01',
                 'expires_on' => '2026-12-31', 'expiration_type' => 'best_before',
                 'quantity' => '10',
@@ -82,7 +81,7 @@ class PurchaseReceiptManagementTest extends TestCase
         $this->assertDatabaseHas('purchase_receipt_lines', [
             'purchase_receipt_id' => $receipt->id,
             'product_id' => $product->id,
-            'lot_number' => 'LOT-202610-A',
+            'lot_number' => sprintf('AUTO-%010d-001', $receipt->id),
             'quantity' => '10.0000',
             'purchase_amount' => '1805.0000',
         ]);
@@ -98,7 +97,6 @@ class PurchaseReceiptManagementTest extends TestCase
         $input = $this->input($supplier, $product, $setting, ['action' => 'post', 'lines' => [[
             'product_id' => $product->id,
             'product_supplier_id' => $setting->id,
-            'lot_number' => 'LOT-KG-001',
             'manufactured_on' => null,
             'expires_on' => null, 'expiration_type' => null,
             'quantity' => '12.345',
@@ -114,7 +112,7 @@ class PurchaseReceiptManagementTest extends TestCase
             'purchase_receipt_line_id' => $line->id,
             'product_id' => $product->id,
             'supplier_id' => $supplier->id,
-            'lot_number' => 'LOT-KG-001',
+            'lot_number' => $line->lot_number,
             'initial_quantity' => '12.3450',
             'current_quantity' => '12.3450',
             'unit_purchase_price' => '180.5000',
@@ -143,14 +141,18 @@ class PurchaseReceiptManagementTest extends TestCase
         $this->assertDatabaseHas('purchase_receipt_lines', ['id' => $old->id, 'lot_number' => 'OLD']);
 
         $fresh = $this->input($supplier, $product, $setting, ['lock_version' => 1, 'lines' => [[
-            'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'NEW',
+            'product_id' => $product->id, 'product_supplier_id' => $setting->id,
             'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '3', 'unit_purchase_price' => '200',
         ]]]);
         $this->put('/admin/purchase-receipts/'.$receipt->id, $fresh)->assertSessionHasNoErrors();
 
         $this->assertSame(2, $receipt->fresh()->lock_version);
         $this->assertDatabaseMissing('purchase_receipt_lines', ['id' => $old->id]);
-        $this->assertDatabaseHas('purchase_receipt_lines', ['purchase_receipt_id' => $receipt->id, 'lot_number' => 'NEW', 'purchase_amount' => '600.0000']);
+        $this->assertDatabaseHas('purchase_receipt_lines', [
+            'purchase_receipt_id' => $receipt->id,
+            'lot_number' => sprintf('AUTO-%010d-001', $receipt->id),
+            'purchase_amount' => '600.0000',
+        ]);
     }
 
     public function test_posted_receipt_cannot_be_changed_or_posted_twice(): void
@@ -163,44 +165,44 @@ class PurchaseReceiptManagementTest extends TestCase
 
         $change = $this->input($supplier, $product, $setting, ['action' => 'post', 'lock_version' => $receipt->lock_version, 'lines' => [[
             'id' => $line->id, 'product_id' => $product->id, 'product_supplier_id' => $setting->id,
-            'lot_number' => 'CHANGED', 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '20', 'unit_purchase_price' => '180.5',
+            'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '20', 'unit_purchase_price' => '180.5',
         ]]]);
         $this->put('/admin/purchase-receipts/'.$receipt->id, $change)->assertSessionHasErrors('status');
 
         $this->assertDatabaseCount('inventory_lots', 1);
         $this->assertDatabaseCount('stock_movements', 1);
-        $this->assertDatabaseHas('purchase_receipt_lines', ['id' => $line->id, 'lot_number' => 'LOT-202610-A', 'quantity' => '10.0000']);
+        $this->assertDatabaseHas('purchase_receipt_lines', ['id' => $line->id, 'lot_number' => $line->lot_number, 'quantity' => '10.0000']);
     }
 
-    public function test_invalid_supplier_setting_duplicate_lot_dates_and_quantity_scale_are_rejected(): void
+    public function test_invalid_supplier_setting_dates_and_quantity_scale_are_rejected(): void
     {
         [$supplier, $product, $setting] = $this->purchasingContext();
         [$otherSupplier, $otherProduct, $otherSetting] = $this->purchasingContext();
         $admin = User::factory()->admin()->create();
 
         $mismatch = $this->input($supplier, $product, $setting, ['lines' => [[
-            'product_id' => $otherProduct->id, 'product_supplier_id' => $otherSetting->id, 'lot_number' => 'X',
+            'product_id' => $otherProduct->id, 'product_supplier_id' => $otherSetting->id,
             'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '1', 'unit_purchase_price' => '10',
         ]]]);
         $this->actingAs($admin)->post('/admin/purchase-receipts', $mismatch)->assertSessionHasErrors('lines.0.product_id');
 
         $bad = $this->input($supplier, $product, $setting, ['lines' => [
-            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'SAME', 'manufactured_on' => '2026-10-10', 'expires_on' => '2026-10-01', 'quantity' => '1.5', 'unit_purchase_price' => '10'],
-            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'same', 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '1', 'unit_purchase_price' => '10'],
+            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'manufactured_on' => '2026-10-10', 'expires_on' => '2026-10-01', 'quantity' => '1.5', 'unit_purchase_price' => '10'],
+            ['product_id' => $product->id, 'product_supplier_id' => $setting->id, 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '1', 'unit_purchase_price' => '10'],
         ]]);
-        $this->post('/admin/purchase-receipts', $bad)->assertSessionHasErrors(['lines.0.expires_on', 'lines.0.quantity', 'lines.1.lot_number']);
+        $this->post('/admin/purchase-receipts', $bad)->assertSessionHasErrors(['lines.0.expires_on', 'lines.0.quantity']);
 
         $setting->update(['status' => 'inactive']);
         $this->post('/admin/purchase-receipts', $this->input($supplier, $product, $setting))->assertSessionHasErrors('lines.0.product_id');
         $this->assertDatabaseCount('purchase_receipts', 0);
     }
 
-    public function test_receipt_list_filters_by_supplier_status_month_and_lot(): void
+    public function test_receipt_list_filters_by_supplier_status_month_and_receipt_number(): void
     {
         [$supplier, $product, $setting] = $this->purchasingContext();
         $admin = User::factory()->admin()->create();
-        $match = PurchaseReceipt::factory()->create(['supplier_id' => $supplier->id, 'created_by' => $admin->id, 'received_on' => '2026-10-15', 'status' => 'posted']);
-        PurchaseReceiptLine::factory()->create(['purchase_receipt_id' => $match->id, 'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'FIND-ME']);
+        $match = PurchaseReceipt::factory()->create(['supplier_id' => $supplier->id, 'created_by' => $admin->id, 'receipt_number' => 'R-FIND-ME', 'received_on' => '2026-10-15', 'status' => 'posted']);
+        PurchaseReceiptLine::factory()->create(['purchase_receipt_id' => $match->id, 'product_id' => $product->id, 'product_supplier_id' => $setting->id]);
         PurchaseReceipt::factory()->create(['received_on' => '2026-09-01', 'status' => 'draft']);
 
         $this->actingAs($admin)->get('/admin/purchase-receipts?supplier_id='.$supplier->id.'&status=posted&received_month=2026-10&q=FIND')
@@ -219,16 +221,18 @@ class PurchaseReceiptManagementTest extends TestCase
         $admin = User::factory()->admin()->create();
         $this->actingAs($admin)->post('/admin/purchase-receipts', $this->input($supplier, $product, $setting, [
             'action' => 'post', 'received_on' => '2026-10-15', 'lines' => [[
-                'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'VISIBLE-LOT',
+                'product_id' => $product->id, 'product_supplier_id' => $setting->id,
                 'manufactured_on' => null, 'expires_on' => null, 'expiration_type' => null, 'quantity' => '12.345', 'unit_purchase_price' => '180.5',
             ]],
         ]))->assertSessionHasNoErrors();
 
-        $this->get('/admin/inventory-lots?supplier_id='.$supplier->id.'&received_month=2026-10&q=VISIBLE')
+        $lotNumber = PurchaseReceiptLine::firstOrFail()->lot_number;
+
+        $this->get('/admin/inventory-lots?supplier_id='.$supplier->id.'&received_month=2026-10&q='.urlencode($lotNumber))
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Admin/InventoryLots/Index')
                 ->where('lots.total', 1)
-                ->where('lots.data.0.lot_number', 'VISIBLE-LOT')
+                ->where('lots.data.0.lot_number', $lotNumber)
                 ->where('totalsByUnit.0.name', 'kg')
                 ->where('totalsByUnit.0.total_quantity', 12.345));
     }

@@ -5,7 +5,7 @@ import AdminLayout from '../../../Layouts/AdminLayout.vue';
 import ReceiptExpirationFields from '../../../Components/ReceiptExpirationFields.vue';
 
 const props = defineProps({ receipt: Object, suppliers: Array });
-const mapLine = line => ({ id: line.id ?? null, product_id: line.product_id ?? '', product_supplier_id: line.product_supplier_id ?? '', lot_number: line.lot_number ?? '', manufactured_on: line.manufactured_on ?? '', expires_on: line.expires_on ?? '', expiration_type: line.expiration_type ?? null, quantity: line.quantity ?? '', unit_purchase_price: line.unit_purchase_price ?? '' });
+const mapLine = line => ({ id: line.id ?? null, product_id: line.product_id ?? '', product_supplier_id: line.product_supplier_id ?? '', manufactured_on: line.manufactured_on ?? '', expires_on: line.expires_on ?? '', expiration_type: line.expiration_type ?? null, quantity: line.quantity ?? '', unit_purchase_price: line.unit_purchase_price ?? '' });
 const form = useForm({ supplier_id: props.receipt?.supplier_id ?? '', received_on: props.receipt?.received_on ?? new Date().toLocaleDateString('en-CA'), notes: props.receipt?.notes ?? '', lock_version: props.receipt?.lock_version ?? 0, action: 'draft', lines: props.receipt?.lines?.map(mapLine) ?? [] });
 const posted = computed(() => props.receipt?.status === 'posted');
 const selectedSupplier = computed(() => props.suppliers.find(supplier => String(supplier.id) === String(form.supplier_id)));
@@ -14,7 +14,7 @@ const total = computed(() => form.lines.reduce((sum, line) => sum + (Number(line
 const money = value => new Intl.NumberFormat('ja-JP', { maximumFractionDigits: 4 }).format(Number(value) || 0);
 const settingFor = line => availableSettings.value.find(setting => String(setting.id) === String(line.product_supplier_id));
 const unitFor = line => settingFor(line)?.product?.unit?.name ?? props.receipt?.lines?.find(item => item.id === line.id)?.product?.unit?.name ?? '';
-const makeLine = () => ({ id: null, product_id: '', product_supplier_id: '', lot_number: '', manufactured_on: '', expires_on: '', expiration_type: null, quantity: '', unit_purchase_price: '' });
+const makeLine = () => ({ id: null, product_id: '', product_supplier_id: '', manufactured_on: '', expires_on: '', expiration_type: null, quantity: '', unit_purchase_price: '' });
 
 function changeSupplier() { form.lines = []; }
 function addLine() { form.lines.push(makeLine()); }
@@ -56,7 +56,6 @@ function save(action) {
           <article v-for="(line, index) in form.lines" :key="line.id ?? `new-${index}`" class="rounded-xl border border-slate-200 p-5"><div class="mb-4 flex items-center justify-between"><h3 class="font-semibold">明細 {{ index + 1 }}</h3><button v-if="!posted" type="button" @click="removeLine(index)" class="text-sm text-red-700">取り除く</button></div>
             <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div class="lg:col-span-2"><label :for="`line-product-${index}`" class="mb-2 block text-sm font-medium">販売商品 <span class="text-xs text-red-600">必須</span></label><select :id="`line-product-${index}`" v-model="line.product_supplier_id" class="field" :disabled="posted || Boolean(line.id)" @change="changeProduct(line)"><option value="">選択してください</option><option v-for="setting in availableSettings" :key="setting.id" :value="setting.id">{{ setting.product.sku }}｜{{ setting.product.name }}{{ setting.status === 'inactive' ? '（仕入設定無効）' : '' }}</option></select></div>
-              <div><label :for="`lot-number-${index}`" class="mb-2 block text-sm font-medium">ロット番号 <span class="text-xs text-red-600">必須</span></label><input :id="`lot-number-${index}`" v-model="line.lot_number" class="field" maxlength="100" :disabled="posted" /></div>
               <div><label :for="`manufactured-on-${index}`" class="mb-2 block text-sm font-medium">製造日</label><input :id="`manufactured-on-${index}`" v-model="line.manufactured_on" type="date" class="field" :disabled="posted" /></div>
               <ReceiptExpirationFields :line="line" :index="index" :disabled="posted" />
               <div><label :for="`quantity-${index}`" class="mb-2 block text-sm font-medium">入庫数量 <span class="text-xs text-red-600">必須</span></label><div class="flex items-center gap-2"><input :id="`quantity-${index}`" v-model="line.quantity" type="number" min="0.0001" step="0.0001" class="field" :disabled="posted" /><span class="min-w-8 text-sm text-slate-500">{{ unitFor(line) }}</span></div></div>

@@ -26,7 +26,7 @@ class PurchaseReceiptExpirationTest extends TestCase
         return [
             'supplier_id' => $supplier->id, 'received_on' => '2026-11-16', 'action' => 'draft', 'lock_version' => 0,
             'lines' => [[
-                'product_id' => $product->id, 'product_supplier_id' => $setting->id, 'lot_number' => 'TEST',
+                'product_id' => $product->id, 'product_supplier_id' => $setting->id,
                 'quantity' => '2', 'unit_purchase_price' => '100', 'manufactured_on' => '2026-11-01',
                 'expiration_type' => null, 'expires_on' => null, ...$expiration,
             ]],
@@ -71,13 +71,14 @@ class PurchaseReceiptExpirationTest extends TestCase
     public function test_same_manufacture_and_expiration_date_is_allowed_and_lines_are_independent(): void
     {
         $input = $this->input(['expiration_type' => 'best_before', 'expires_on' => '2026-11-01']);
-        $input['lines'][] = [...$input['lines'][0], 'lot_number' => 'SECOND', 'expiration_type' => 'use_by', 'expires_on' => '2026-12-01'];
-        $input['lines'][] = [...$input['lines'][0], 'lot_number' => 'THIRD', 'expiration_type' => null, 'expires_on' => null];
+        $input['lines'][] = [...$input['lines'][0], 'expiration_type' => 'use_by', 'expires_on' => '2026-12-01'];
+        $input['lines'][] = [...$input['lines'][0], 'expiration_type' => null, 'expires_on' => null];
         $input['action'] = 'post';
         $this->actingAs(User::factory()->admin()->create())->post('/admin/purchase-receipts', $input)->assertSessionHasNoErrors();
-        $this->assertDatabaseHas('inventory_lots', ['lot_number' => 'TEST', 'expiration_type' => 'best_before', 'expires_on' => '2026-11-01']);
-        $this->assertDatabaseHas('inventory_lots', ['lot_number' => 'SECOND', 'expiration_type' => 'use_by', 'expires_on' => '2026-12-01']);
-        $this->assertDatabaseHas('inventory_lots', ['lot_number' => 'THIRD', 'expiration_type' => null, 'expires_on' => null]);
+        $receipt = PurchaseReceipt::firstOrFail();
+        $this->assertDatabaseHas('inventory_lots', ['lot_number' => sprintf('AUTO-%010d-001', $receipt->id), 'expiration_type' => 'best_before', 'expires_on' => '2026-11-01']);
+        $this->assertDatabaseHas('inventory_lots', ['lot_number' => sprintf('AUTO-%010d-002', $receipt->id), 'expiration_type' => 'use_by', 'expires_on' => '2026-12-01']);
+        $this->assertDatabaseHas('inventory_lots', ['lot_number' => sprintf('AUTO-%010d-003', $receipt->id), 'expiration_type' => null, 'expires_on' => null]);
     }
 
     #[TestWith(['best_before', '2027-05-31'])]

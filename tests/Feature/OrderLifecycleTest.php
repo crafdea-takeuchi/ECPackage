@@ -159,7 +159,6 @@ class OrderLifecycleTest extends TestCase
             'lines' => [[
                 'product_id' => $context['product']->id,
                 'product_supplier_id' => $context['setting']->id,
-                'lot_number' => 'BACKORDER-ARRIVAL',
                 'manufactured_on' => null,
                 'expires_on' => null,
                 'quantity' => '4',
@@ -169,7 +168,7 @@ class OrderLifecycleTest extends TestCase
         $this->actingAs($context['admin'])->post('/admin/purchase-receipts', $input)->assertSessionHasNoErrors();
 
         $line = $order->lines()->firstOrFail();
-        $newLot = InventoryLot::where('lot_number', 'BACKORDER-ARRIVAL')->firstOrFail();
+        $newLot = InventoryLot::where('id', '!=', $context['lot']->id)->firstOrFail();
         $this->assertSame('3.0000', $line->backordered_initial_quantity);
         $this->assertSame('0.0000', $line->backordered_quantity);
         $this->assertNotNull($line->backorder_fulfilled_at);

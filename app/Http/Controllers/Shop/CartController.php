@@ -38,7 +38,10 @@ class CartController extends Controller
     {
         $product = Product::findOrFail($request->integer('product_id'));
         $cart = session('cart', []);
-        $quantity = bcadd((string) ($cart[$product->id] ?? '0'), (string) $request->validated('quantity'), 4);
+        if (array_key_exists($product->id, $cart)) {
+            return back()->with('status', 'この商品はすでにカートに入っています。数量はカート画面で変更してください。');
+        }
+        $quantity = bcadd((string) $request->validated('quantity'), '0', 4);
         $this->ensureAvailable($product, $quantity);
         $cart[$product->id] = $quantity;
         session(['cart' => $cart]);

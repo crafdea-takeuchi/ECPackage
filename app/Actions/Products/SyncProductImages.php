@@ -4,11 +4,10 @@ namespace App\Actions\Products;
 
 use App\Models\Product;
 use App\Models\ProductGroup;
+use App\Models\ProductImageUpload;
 use Closure;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 
@@ -20,7 +19,12 @@ class SyncProductImages
 
     private array $obsoleteFiles = [];
 
-    /** Prepare files before locking the product; remove old files only after commit. */
+    public function __construct(private StoreProductImageFile $storeProductImageFile) {}
+
+    /**
+     * Prepare files before locking the product; remove old files only after commit.
+     * 事前にアップロード済みの画像（upload_id）は、商品のトランザクション内で商品画像へ移す。
+     */
     public function handle(?array $images, Closure $save): mixed
     {
         $this->prepared = [];
@@ -56,7 +60,10 @@ class SyncProductImages
                 throw ValidationException::withMessages(['images' => 'この商品の画像を選び直してください。']);
             }
             $image = $id ? $existing->get($id) : $product->images()->make();
-            $prepared = $this->prepared[$index];
+            $prepared = $this->prepared[$index] ?? [];
+            if ($prepared === [] && isset($input['upload_id'])) {
+                $prepared = $this->claimUpload((int) $input['upload_id'], $index);
+            }
             if (! $id && $prepared === []) {
                 throw ValidationException::withMessages(["images.$index.file" => '画像ファイルを選択してください。']);
             }
@@ -75,64 +82,36 @@ class SyncProductImages
         }
     }
 
-    private function prepare(UploadedFile $file, int $index): array
+    /**
+     * アップロード済みの画像を商品画像用に取り出し、アップロードのレコードを削除する。
+     * ファイルはそのまま商品画像が引き継ぐ。トランザクションが巻き戻ればレコードも戻るので、再保存できる。
+     *
+     * @return array{disk: string, path: string, thumbnail_path: string, mime_type: string, size_bytes: int, width: int, height: int}
+     */
+    private function claimUpload(int $uploadId, int $index): array
     {
-        try {
-            $dimensions = @getimagesize($file->getRealPath());
-            if (! $dimensions || $dimensions[0] * $dimensions[1] > 20000000) {
-                throw ValidationException::withMessages(["images.$index.file" => '画像は2000万画素以内にしてください。']);
-            }
-            $image = new \Imagick;
-            try {
-                $image->readImage($file->getRealPath().'[0]');
-                $image->autoOrient();
-                $image->stripImage();
-                $image->setImageFormat('webp');
-                $image->setImageCompressionQuality(85);
-                $this->resize($image, 1600);
-                $full = $image->getImageBlob();
-                $width = $image->getImageWidth();
-                $height = $image->getImageHeight();
-                $this->resize($image, 400);
-                $thumbnail = $image->getImageBlob();
-            } finally {
-                $image->clear();
-            }
-            $disk = config('filesystems.product_image_disk', 'product_images');
-            $key = (string) Str::uuid();
-            $path = $key.'.webp';
-            $thumbnailPath = $key.'-thumb.webp';
-            $this->newFiles[] = [$disk, $path, $thumbnailPath];
-            if (! Storage::disk($disk)->put($path, $full) || ! Storage::disk($disk)->put($thumbnailPath, $thumbnail)) {
-                throw new \RuntimeException('Product image write failed.');
-            }
-
-            return ['disk' => $disk, 'path' => $path, 'thumbnail_path' => $thumbnailPath, 'mime_type' => 'image/webp', 'size_bytes' => strlen($full), 'width' => $width, 'height' => $height];
-        } catch (ValidationException $exception) {
-            throw $exception;
-        } catch (Throwable $exception) {
-            report($exception);
-            throw ValidationException::withMessages(["images.$index.file" => '画像を保存できませんでした。ファイルを確認して再度お試しください。']);
+        $upload = ProductImageUpload::whereKey($uploadId)->lockForUpdate()->first();
+        if ($upload === null) {
+            throw ValidationException::withMessages(["images.$index.upload_id" => '画像をアップロードし直してください。']);
         }
+        $attributes = $upload->imageAttributes();
+        $upload->delete();
+
+        return $attributes;
     }
 
-    private function resize(\Imagick $image, int $max): void
+    private function prepare(UploadedFile $file, int $index): array
     {
-        if ($image->getImageWidth() > $max || $image->getImageHeight() > $max) {
-            $image->thumbnailImage($max, $max, true);
-        }
+        $prepared = $this->storeProductImageFile->handle($file, "images.$index.file");
+        $this->newFiles[] = [$prepared['disk'], $prepared['path'], $prepared['thumbnail_path']];
+
+        return $prepared;
     }
 
     private function deleteFiles(array $files): void
     {
         foreach ($files as [$disk, $path, $thumbnail]) {
-            try {
-                if (! Storage::disk($disk)->delete([$path, $thumbnail])) {
-                    throw new \RuntimeException('Product image cleanup failed: '.$path);
-                }
-            } catch (Throwable $exception) {
-                report($exception);
-            }
+            $this->storeProductImageFile->delete($disk, $path, $thumbnail);
         }
     }
 }

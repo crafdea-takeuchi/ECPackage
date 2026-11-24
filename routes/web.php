@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\OrderSettingController;
 use App\Http\Controllers\Admin\PostalCodeShippingGroupController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductGroupController;
+use App\Http\Controllers\Admin\ProductImageUploadController;
 use App\Http\Controllers\Admin\PurchaseReceiptController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShipmentController;
@@ -86,6 +87,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     $registerCsvImportRoutes('shipments', 'shipments', 'shipments');
     Route::resource('categories', CategoryController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('product-groups', ProductGroupController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
+    Route::post('product-image-uploads', [ProductImageUploadController::class, 'store'])->middleware('throttle:60,1')->name('product-image-uploads.store');
     Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('suppliers', SupplierController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('purchase-receipts', PurchaseReceiptController::class)->only(['index', 'create', 'store', 'edit', 'update']);

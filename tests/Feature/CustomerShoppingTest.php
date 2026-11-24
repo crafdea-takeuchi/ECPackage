@@ -111,18 +111,17 @@ class CustomerShoppingTest extends TestCase
             ->where('products.data.1.price_including_tax', '324.5000'));
     }
 
-    public function test_guest_can_add_accumulate_update_and_remove_cart_items(): void
+    public function test_guest_can_add_update_and_remove_cart_items(): void
     {
         $context = $this->sellableProduct(quantity: '10');
 
         $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '2'])->assertRedirect()->assertSessionHasNoErrors();
-        $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '3'])->assertSessionHasNoErrors();
         $this->get('/cart')->assertInertia(fn (Assert $page) => $page
             ->component('Cart/Index')
             ->where('items.0.product.id', $context['product']->id)
-            ->where('items.0.quantity', '5.0000')
-            ->where('items.0.amount', '1502.5000')
-            ->where('total', '1502.5000')
+            ->where('items.0.quantity', '2.0000')
+            ->where('items.0.amount', '601.0000')
+            ->where('total', '601.0000')
             ->where('cart.count', 1));
 
         $this->patch('/cart/'.$context['product']->id, ['quantity' => '4'])->assertSessionHasNoErrors();
@@ -164,6 +163,20 @@ class CustomerShoppingTest extends TestCase
         $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '1'])
             ->assertSessionHasErrors(['product_id' => $context['product']->name.'：現在非公開の商品です。']);
         $this->assertNull(session('cart'));
+    }
+
+    public function test_adding_a_product_already_in_cart_does_not_increase_its_quantity(): void
+    {
+        $context = $this->sellableProduct(quantity: '5', productOverrides: ['shortage_policy' => 'backorder']);
+
+        $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '4'])->assertSessionHasNoErrors();
+        $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '4'])
+            ->assertRedirect()
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('status', 'この商品はすでにカートに入っています。数量はカート画面で変更してください。');
+        $this->post('/cart', ['product_id' => $context['product']->id, 'quantity' => '1'])->assertSessionHasNoErrors();
+
+        $this->assertSame([$context['product']->id => '4.0000'], session('cart'));
     }
 
     public function test_checkout_requires_verified_customer_and_rejects_admin(): void

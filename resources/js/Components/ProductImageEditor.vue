@@ -1,11 +1,50 @@
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue';
 
-const props = defineProps({ modelValue: { type: Array, default: () => [] }, disabled: Boolean, maxImages: { type: Number, default: 5 }, title: { type: String, default: '商品画像' } });
+const props = defineProps({ modelValue: { type: Array, default: () => [] }, disabled: Boolean, maxImages: { type: Number, default: 5 }, title: { type: String, default: '商品画像' }, uploadUrl: { type: String, default: '' } });
 const emit = defineEmits(['update:modelValue', 'reset']);
 const error = ref('');
 const previews = new Set();
 let sequence = 0;
+const rowKey = row => row.key || row.id;
+const uploadFailedMessage = '画像をアップロードできませんでした。もう一度お試しください。';
+function patch(key, values) {
+  emit('update:modelValue', props.modelValue.map(row => rowKey(row) === key ? { ...row, ...values } : row));
+}
+function xsrfToken() {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+function uploadErrorMessage(status, data) {
+  if (data?.errors?.file?.[0]) return data.errors.file[0];
+  if (status === 413) return '画像のサイズが大きすぎます。1枚5MB以内にしてください。';
+  if (status === 419) return '画面の有効期限が切れました。ページを再読み込みしてください。';
+  return uploadFailedMessage;
+}
+// 画像を1枚ずつ別のリクエストで一時保存し、受け取った upload_id を行に記録する。
+async function upload(key, file) {
+  const body = new FormData();
+  body.append('file', file);
+  let values;
+  try {
+    const response = await fetch(props.uploadUrl, { method: 'POST', body, credentials: 'same-origin', headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', 'X-XSRF-TOKEN': xsrfToken() } });
+    const data = await response.json().catch(() => null);
+    values = response.ok && data?.upload_id ? { upload_id: data.upload_id } : { upload_error: uploadErrorMessage(response.status, data) };
+  } catch {
+    values = { upload_error: uploadFailedMessage };
+  }
+  patch(key, { uploading: false, ...values });
+}
+async function uploadSequentially(rows) {
+  for (const row of rows) {
+    await upload(rowKey(row), row.file);
+  }
+}
+function retry(row) {
+  patch(rowKey(row), { uploading: true, upload_error: '' });
+  upload(rowKey(row), row.file);
+}
+const uploadState = () => props.uploadUrl ? { upload_id: null, uploading: true, upload_error: '' } : {};
 function valid(file) {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { error.value = 'JPEG・PNG・WebPの画像を選択してください。'; return false; }
   if (file.size > 5 * 1024 * 1024) { error.value = '画像は1枚5MB以内にしてください。'; return false; }
@@ -20,14 +59,17 @@ function add(event) {
   event.target.value = '';
   if (props.modelValue.length + files.length > props.maxImages) { error.value = '画像は' + props.maxImages + '枚以内で登録してください。'; return; }
   if (!files.every(valid)) return;
-  emit('update:modelValue', [...props.modelValue, ...files.map(file => ({ key: 'new-' + ++sequence, id: null, file, alt_text: '', preview: preview(file) }))]);
+  const added = files.map(file => ({ key: 'new-' + ++sequence, id: null, file, alt_text: '', preview: preview(file), ...uploadState() }));
+  emit('update:modelValue', [...props.modelValue, ...added]);
+  if (props.uploadUrl) uploadSequentially(added);
 }
 function replace(event, index) {
   const file = event.target.files?.[0]; event.target.value = ''; error.value = '';
   if (!file || !valid(file)) return;
   const rows = [...props.modelValue];
-  rows[index] = { ...rows[index], file, preview: preview(file) };
+  rows[index] = { ...rows[index], key: rowKey(rows[index]) || 'new-' + ++sequence, file, preview: preview(file), ...uploadState() };
   emit('update:modelValue', rows);
+  if (props.uploadUrl) uploadSequentially([rows[index]]);
 }
 function remove(index) { emit('update:modelValue', props.modelValue.filter((_, i) => i !== index)); }
 function move(index, offset) {
@@ -56,6 +98,11 @@ onBeforeUnmount(() => previews.forEach(url => URL.revokeObjectURL(url)));
       <div v-for="(row, index) in modelValue" :key="row.key || row.id" class="rounded-xl border border-slate-200 p-4">
         <img :src="row.preview || row.thumbnail_url" :alt="row.alt_text || '商品画像プレビュー'" class="aspect-square w-full rounded-lg bg-slate-50 object-contain" />
         <p class="my-3 text-sm font-semibold">{{ index === 0 ? '代表画像' : '画像 ' + (index + 1) }}<span v-if="row.file" class="ml-2 text-xs text-amber-700">未保存</span></p>
+        <p v-if="row.uploading" role="status" class="mb-3 text-xs text-slate-500">アップロード中…</p>
+        <div v-else-if="row.upload_error" class="mb-3 flex flex-wrap items-center gap-2">
+          <p role="alert" class="text-xs text-red-700">{{ row.upload_error }}</p>
+          <button type="button" class="rounded border px-3 py-1 text-xs" :disabled="disabled" @click="retry(row)">再試行</button>
+        </div>
         <label class="block text-xs text-slate-600">画像の説明（任意）
           <input :value="row.alt_text" maxlength="200" class="field mt-1" @input="updateAlt(index, $event.target.value)" />
         </label>

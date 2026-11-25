@@ -180,8 +180,8 @@ class ProductRequest extends FormRequest
         return [
             'images.max' => '商品画像は5枚以内で登録してください。',
             'images.*.id.exists' => 'この商品の画像を選び直してください。',
-            'images.*.file.image' => 'JPEG・PNG・WebPの画像を選択してください。',
-            'images.*.file.mimes' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.image' => 'JPEG・PNG・WebP・GIFの画像を選択してください。',
+            'images.*.file.mimes' => 'JPEG・PNG・WebP・GIFの画像を選択してください。',
             'images.*.file.max' => '画像は1枚5MB以内にしてください。',
             'images.*.file.dimensions' => '画像の縦横は6000px以内にしてください。',
             'images.*.upload_id.integer' => '画像をアップロードし直してください。',

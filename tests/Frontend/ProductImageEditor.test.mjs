@@ -40,19 +40,25 @@ const text = el => el.text ?? (el.children ?? []).map(text).join('');
 const flush = async () => { for (let i = 0; i < 5; i++) { await new Promise(resolve => setTimeout(resolve, 0)); await nextTick(); } };
 const image = name => new File(['image'], name, { type: 'image/jpeg' });
 
-function mount(uploadUrl = '/admin/product-image-uploads') {
+function mount(uploadUrl = '/admin/product-image-uploads', disabled = false) {
   globalThis.document = { cookie: 'XSRF-TOKEN=token%3D', activeElement: null };
   globalThis.URL.createObjectURL = file => `blob:${file.name}`;
   globalThis.URL.revokeObjectURL = () => {};
   const rows = ref([]);
   const root = node('root');
   const app = renderer.createApp(defineComponent({
-    setup: () => () => h(Editor, { modelValue: rows.value, uploadUrl, 'onUpdate:modelValue': value => { rows.value = value; } }),
+    setup: () => () => h(Editor, { modelValue: rows.value, uploadUrl, disabled, 'onUpdate:modelValue': value => { rows.value = value; } }),
   }));
   app.mount(root);
   const select = files => findAll(root, el => el.tag === 'input' && el.props.multiple)[0].props.onChange({ target: { files, value: 'selected' } });
+  const dropZone = () => findAll(root, el => el.props?.['data-testid'] === 'image-drop-zone')[0];
+  const dragEvent = files => ({ dataTransfer: { files }, preventDefault() {}, stopPropagation() {} });
+  const drop = files => {
+    dropZone().props.onDragenter(dragEvent([]));
+    dropZone().props.onDrop(dragEvent(files));
+  };
 
-  return { rows, root, app, select };
+  return { rows, root, app, select, drop, dropZone, dragEvent };
 }
 
 function mockFetch(responses) {
@@ -109,6 +115,81 @@ test('failed upload shows the server message and can be retried', async () => {
   await flush();
   assert.equal(rows.value[0].upload_id, 21);
   assert.equal(rows.value[0].upload_error, '');
+  app.unmount();
+});
+
+test('GIF images are accepted and other formats are rejected before uploading', async () => {
+  const calls = mockFetch([json(201, { upload_id: 31 })]);
+  const { rows, root, app, select } = mount();
+
+  select([new File(['bmp'], 'photo.bmp', { type: 'image/bmp' })]);
+  await flush();
+  assert.equal(calls.length, 0);
+  assert.ok(text(root).includes('JPEG・PNG・WebP・GIFの画像を選択してください。'));
+
+  select([new File(['gif'], 'animation.gif', { type: 'image/gif' })]);
+  await flush();
+  assert.equal(calls.length, 1);
+  calls[0].resolve();
+  await flush();
+  assert.equal(rows.value[0].upload_id, 31);
+  assert.ok(findAll(root, el => el.tag === 'input' && el.props.multiple)[0].props.accept.split(',').includes('image/gif'));
+  app.unmount();
+});
+
+test('dropping images on the select area uploads them like selecting them', async () => {
+  const calls = mockFetch([json(201, { upload_id: 41 }), json(201, { upload_id: 42 })]);
+  const { rows, root, app, drop, dropZone, dragEvent } = mount();
+
+  dropZone().props.onDragenter(dragEvent([]));
+  await flush();
+  assert.ok(text(root).includes('ここで離すと追加します'));
+
+  drop([image('dropped-1.jpg'), image('dropped-2.jpg')]);
+  await flush();
+  assert.ok(text(root).includes('またはここに画像をドラッグ＆ドロップ'), 'ドロップ後は表示が元に戻る');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].options.body.get('file').name, 'dropped-1.jpg');
+  calls[0].resolve();
+  await flush();
+  calls[1].resolve();
+  await flush();
+
+  assert.deepEqual(rows.value.map(row => [row.file.name, row.upload_id]), [['dropped-1.jpg', 41], ['dropped-2.jpg', 42]]);
+  app.unmount();
+});
+
+test('dropped files are validated and ignored while the editor is disabled', async () => {
+  const calls = mockFetch([]);
+  const invalid = mount();
+  invalid.drop([new File(['pdf'], 'manual.pdf', { type: 'application/pdf' })]);
+  await flush();
+  assert.equal(invalid.rows.value.length, 0);
+  assert.ok(text(invalid.root).includes('JPEG・PNG・WebP・GIFの画像を選択してください。'));
+  invalid.drop([image('1.jpg'), image('2.jpg'), image('3.jpg'), image('4.jpg'), image('5.jpg'), image('6.jpg')]);
+  await flush();
+  assert.equal(invalid.rows.value.length, 0);
+  assert.ok(text(invalid.root).includes('画像は5枚以内で登録してください。'));
+  invalid.app.unmount();
+
+  const disabled = mount('/admin/product-image-uploads', true);
+  disabled.drop([image('disabled.jpg')]);
+  await flush();
+  assert.equal(disabled.rows.value.length, 0);
+  assert.equal(calls.length, 0);
+  disabled.app.unmount();
+});
+
+test('images over 5,000,000 bytes are rejected before uploading', async () => {
+  const calls = mockFetch([]);
+  const { rows, root, app, select } = mount();
+
+  select([new File([new Uint8Array(5_000_001)], 'over.jpg', { type: 'image/jpeg' })]);
+  await flush();
+
+  assert.equal(calls.length, 0);
+  assert.equal(rows.value.length, 0);
+  assert.ok(text(root).includes('画像は1枚5MB以内にしてください。'));
   app.unmount();
 });
 

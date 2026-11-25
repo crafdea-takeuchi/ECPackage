@@ -65,12 +65,55 @@ class ProductImageUploadTest extends TestCase
     public function test_invalid_image_upload_returns_json_error_without_writing_files(): void
     {
         $this->actingAs(User::factory()->admin()->create())
-            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->image('test.gif')])
+            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->image('test.bmp')])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['file' => 'JPEG・PNG・WebPの画像を選択してください。']);
+            ->assertJsonValidationErrors(['file' => 'JPEG・PNG・WebP・GIFの画像を選択してください。']);
 
         $this->assertDatabaseCount('product_image_uploads', 0);
         $this->assertSame([], Storage::disk('product_images')->allFiles());
+    }
+
+    public function test_animated_gif_is_accepted_and_saved_as_still_webp_of_first_frame(): void
+    {
+        $animation = new \Imagick;
+        foreach (['red', 'blue'] as $color) {
+            $frame = new \Imagick;
+            $frame->newImage(320, 240, new \ImagickPixel($color));
+            $frame->setImageFormat('gif');
+            $animation->addImage($frame);
+        }
+        $gif = $animation->getImagesBlob();
+
+        $uploadId = $this->actingAs(User::factory()->admin()->create())
+            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->createWithContent('animation.gif', $gif)])
+            ->assertCreated()
+            ->json('upload_id');
+
+        $upload = ProductImageUpload::findOrFail($uploadId);
+        $saved = new \Imagick;
+        $saved->readImageBlob(Storage::disk('product_images')->get($upload->path));
+        $this->assertSame(['WEBP', 1, 320, 240], [$saved->getImageFormat(), $saved->getNumberImages(), $upload->width, $upload->height]);
+        $pixel = $saved->getImagePixelColor(10, 10)->getColor();
+        $this->assertGreaterThan(200, $pixel['r'], '1フレーム目（赤）で保存される');
+        $this->assertLessThan(60, $pixel['b']);
+    }
+
+    public function test_image_size_limit_is_five_million_bytes(): void
+    {
+        $admin = User::factory()->admin()->create();
+
+        $this->actingAs($admin)
+            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->image('just-under.jpg')->size(4882)])
+            ->assertCreated();
+        $this->actingAs($admin)
+            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->image('over.jpg')->size(4883)])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['file' => '画像は1枚5MB以内にしてください。']);
+        $this->actingAs($admin)
+            ->postJson('/admin/product-image-uploads', ['file' => UploadedFile::fake()->image('finder-5.1mb.jpg')->size(4981)])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseCount('product_image_uploads', 1);
     }
 
     public function test_customers_and_guests_cannot_upload_images(): void

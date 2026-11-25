@@ -79,8 +79,8 @@ class ProductGroupRequest extends FormRequest
         return [
             'images.max' => '基本商品の代表画像は1枚だけ登録できます。',
             'images.*.id.exists' => 'この基本商品の画像を選び直してください。',
-            'images.*.file.image' => 'JPEG・PNG・WebPの画像を選択してください。',
-            'images.*.file.mimes' => 'JPEG・PNG・WebPの画像を選択してください。',
+            'images.*.file.image' => 'JPEG・PNG・WebP・GIFの画像を選択してください。',
+            'images.*.file.mimes' => 'JPEG・PNG・WebP・GIFの画像を選択してください。',
             'images.*.file.max' => '画像は1枚5MB以内にしてください。',
             'images.*.file.dimensions' => '画像は縦・横6000ピクセル以内にしてください。',
             'name.required' => '基本商品名を入力してください。',

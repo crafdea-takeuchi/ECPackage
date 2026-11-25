@@ -112,6 +112,38 @@ test('failed upload shows the server message and can be retried', async () => {
   app.unmount();
 });
 
+test('GIF images are accepted and other formats are rejected before uploading', async () => {
+  const calls = mockFetch([json(201, { upload_id: 31 })]);
+  const { rows, root, app, select } = mount();
+
+  select([new File(['bmp'], 'photo.bmp', { type: 'image/bmp' })]);
+  await flush();
+  assert.equal(calls.length, 0);
+  assert.ok(text(root).includes('JPEG・PNG・WebP・GIFの画像を選択してください。'));
+
+  select([new File(['gif'], 'animation.gif', { type: 'image/gif' })]);
+  await flush();
+  assert.equal(calls.length, 1);
+  calls[0].resolve();
+  await flush();
+  assert.equal(rows.value[0].upload_id, 31);
+  assert.ok(findAll(root, el => el.tag === 'input' && el.props.multiple)[0].props.accept.split(',').includes('image/gif'));
+  app.unmount();
+});
+
+test('images over 5,000,000 bytes are rejected before uploading', async () => {
+  const calls = mockFetch([]);
+  const { rows, root, app, select } = mount();
+
+  select([new File([new Uint8Array(5_000_001)], 'over.jpg', { type: 'image/jpeg' })]);
+  await flush();
+
+  assert.equal(calls.length, 0);
+  assert.equal(rows.value.length, 0);
+  assert.ok(text(root).includes('画像は1枚5MB以内にしてください。'));
+  app.unmount();
+});
+
 test('without an upload URL images stay in the form and nothing is sent', async () => {
   const calls = mockFetch([]);
   const { rows, app, select } = mount('');

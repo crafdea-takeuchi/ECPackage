@@ -45,6 +45,7 @@ class ProductImageTest extends TestCase
     #[TestWith(['jpg'])]
     #[TestWith(['png'])]
     #[TestWith(['webp'])]
+    #[TestWith(['gif'])]
     public function test_admin_uploads_image_and_gets_resized_webp_and_thumbnail(string $format): void
     {
         Storage::fake('product_images');
@@ -201,7 +202,7 @@ class ProductImageTest extends TestCase
         $this->assertSame([], Storage::disk('product_images')->allFiles());
     }
 
-    #[TestWith(['gif'])]
+    #[TestWith(['bmp'])]
     #[TestWith(['svg'])]
     #[TestWith(['fake'])]
     #[TestWith(['size'])]
@@ -210,7 +211,7 @@ class ProductImageTest extends TestCase
     {
         Storage::fake('product_images');
         $file = match ($case) {
-            'gif' => UploadedFile::fake()->image('test.gif'),
+            'bmp' => UploadedFile::fake()->image('test.bmp'),
             'svg' => UploadedFile::fake()->createWithContent('test.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
             'fake' => UploadedFile::fake()->createWithContent('test.jpg', '<?php echo "not an image";'),
             'size' => UploadedFile::fake()->image('test.jpg')->size(5121),

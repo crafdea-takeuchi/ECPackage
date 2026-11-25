@@ -56,9 +56,30 @@ function preview(file) {
   const url = URL.createObjectURL(file); previews.add(url); return url;
 }
 function add(event) {
-  error.value = '';
   const files = Array.from(event.target.files || []);
   event.target.value = '';
+  addFiles(files);
+}
+const dragging = ref(false);
+let dragDepth = 0;
+function dragEnter() {
+  if (props.disabled) return;
+  dragDepth++;
+  dragging.value = true;
+}
+function dragLeave() {
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dragging.value = false;
+}
+function drop(event) {
+  dragDepth = 0;
+  dragging.value = false;
+  if (props.disabled) return;
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length) addFiles(files);
+}
+function addFiles(files) {
+  error.value = '';
   if (props.modelValue.length + files.length > props.maxImages) { error.value = '画像は' + props.maxImages + '枚以内で登録してください。'; return; }
   if (!files.every(valid)) return;
   const added = files.map(file => ({ key: 'new-' + ++sequence, id: null, file, alt_text: '', preview: preview(file), ...uploadState() }));
@@ -120,13 +141,25 @@ onBeforeUnmount(() => previews.forEach(url => URL.revokeObjectURL(url)));
     </div>
     <p v-if="!modelValue.length" class="rounded-lg bg-slate-50 p-5 text-sm text-slate-500">画像は未登録です。画像なしでも保存できます。</p>
     <div class="mt-5 space-y-4">
-      <label v-if="modelValue.length < maxImages" class="inline-block">
-        <input type="file" :multiple="maxImages > 1" accept="image/jpeg,image/png,image/webp,image/gif" class="peer sr-only" :disabled="disabled" @change="add" />
-        <span class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-100 hover:text-indigo-900 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-600 peer-disabled:pointer-events-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
-          <span aria-hidden="true" class="text-lg leading-none">＋</span>
-          画像を選択
-        </span>
-      </label>
+      <div
+        v-if="modelValue.length < maxImages"
+        data-testid="image-drop-zone"
+        class="flex flex-wrap items-center gap-4 rounded-xl border-2 border-dashed p-4 transition-colors"
+        :class="dragging ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300'"
+        @dragenter.prevent="dragEnter"
+        @dragover.prevent
+        @dragleave="dragLeave"
+        @drop.prevent="drop"
+      >
+        <label class="inline-block">
+          <input type="file" :multiple="maxImages > 1" accept="image/jpeg,image/png,image/webp,image/gif" class="peer sr-only" :disabled="disabled" @change="add" />
+          <span class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-indigo-300 bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:border-indigo-500 hover:bg-indigo-100 hover:text-indigo-900 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-indigo-600 peer-disabled:pointer-events-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50">
+            <span aria-hidden="true" class="text-lg leading-none">＋</span>
+            画像を選択
+          </span>
+        </label>
+        <span class="text-sm text-slate-500">{{ dragging ? 'ここで離すと追加します' : 'またはここに画像をドラッグ＆ドロップ' }}</span>
+      </div>
       <button type="button" class="nav-link text-sm" @click="reset">画像の変更を取り消す</button>
     </div>
   </fieldset>

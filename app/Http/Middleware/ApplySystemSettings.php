@@ -13,19 +13,22 @@ class ApplySystemSettings
     public function handle(Request $request, Closure $next): Response
     {
         $name = 'EC02';
+        $googleAnalyticsId = null;
 
         try {
-            $saved = OrderSetting::query()->whereKey(1)->value('system_name');
-            if (is_string($saved) && trim($saved) !== '') {
-                $name = $saved;
+            $saved = OrderSetting::query()->whereKey(1)->first(['system_name', 'google_analytics_id']);
+            if (is_string($saved?->system_name) && trim($saved->system_name) !== '') {
+                $name = $saved->system_name;
             }
+            $googleAnalyticsId = $saved?->google_analytics_id ?: null;
         } catch (Throwable) {
-            // Keep the fallback name while the database is unavailable or being migrated.
+            // Keep the fallback settings while the database is unavailable or being migrated.
         }
 
         config([
             'app.name' => $name,
             'mail.from.name' => $name,
+            'services.google_analytics.id' => $googleAnalyticsId,
         ]);
 
         return $next($request);

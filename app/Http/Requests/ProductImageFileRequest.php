@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use App\Actions\Products\ProductImageInput;
 use Illuminate\Foundation\Http\FormRequest;
 
-class ProductImageUploadRequest extends FormRequest
+class ProductImageFileRequest extends FormRequest
 {
     public function authorize(): bool
     {

@@ -50,7 +50,7 @@ class ShippingSettingTest extends TestCase
     public function test_hub_preserves_bank_and_fee_cards_and_links_to_unconfigured_shipping(): void
     {
         $this->actingAs(User::factory()->admin()->create())->get(route('admin.settings.index'))
-            ->assertInertia(fn (Assert $page) => $page->has('cards', 4)
+            ->assertInertia(fn (Assert $page) => $page->has('cards', 5)
                 ->where('cards.0.title', '振込先設定')->where('cards.1.title', '手数料設定')
                 ->where('cards.2.title', '送料設定')->where('cards.2.status', "送料が設定されていません\n郵便番号別送料グループ：設定なし")
                 ->where('cards.2.href', route('admin.settings.shipping.edit', [], false)));

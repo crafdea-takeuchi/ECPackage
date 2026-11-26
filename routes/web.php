@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\BankTransferSettingController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\CsvImportController;
 use App\Http\Controllers\Admin\FeeSettingController;
+use App\Http\Controllers\Admin\GoogleAnalyticsSettingController;
 use App\Http\Controllers\Admin\InventoryLotController;
 use App\Http\Controllers\Admin\OrderController;
 use App\Http\Controllers\Admin\OrderSettingController;
@@ -105,6 +106,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
     Route::get('settings/system-name', [SystemNameSettingController::class, 'edit'])->name('settings.system-name.edit');
     Route::put('settings/system-name', [SystemNameSettingController::class, 'update'])->name('settings.system-name.update');
+    Route::get('settings/google-analytics', [GoogleAnalyticsSettingController::class, 'edit'])->name('settings.google-analytics.edit');
+    Route::put('settings/google-analytics', [GoogleAnalyticsSettingController::class, 'update'])->name('settings.google-analytics.update');
     Route::get('settings/shipping', [ShippingSettingController::class, 'edit'])->name('settings.shipping.edit');
     Route::put('settings/shipping', [ShippingSettingController::class, 'update'])->name('settings.shipping.update');
     Route::post('settings/shipping/postal-code-groups', [PostalCodeShippingGroupController::class, 'store'])->name('settings.shipping.postal-code-groups.store');

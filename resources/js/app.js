@@ -1,6 +1,9 @@
 import { createApp, h } from 'vue';
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router } from '@inertiajs/vue3';
+import { trackPageView } from './analytics';
 const systemName = document.documentElement.dataset.systemName || 'EC02';
+// 初回表示と画面遷移のたびに計測する。タイトルの更新を待ってから送る。
+router.on('navigate', event => setTimeout(() => trackPageView(event.detail.page)));
 createInertiaApp({
     title: title => title ? `${title} | ${systemName}` : systemName,
     resolve: name => {

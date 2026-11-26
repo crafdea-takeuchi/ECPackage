@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class OrderSetting extends Model
 {
-    protected $fillable = ['cancellable_statuses', 'system_name'];
+    protected $fillable = ['cancellable_statuses', 'system_name', 'google_analytics_id'];
 
     protected $hidden = ['bank_transfer', 'bank_transfer_updated_by', 'bank_transfer_updated_at'];
 

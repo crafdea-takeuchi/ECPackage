@@ -43,6 +43,9 @@ class SettingsController extends Controller
                 ['title' => 'システム名設定', 'description' => '画面と通知メールに表示するシステム名を設定します。',
                     'status' => '現在のシステム名：'.($settings?->system_name ?? 'EC02'),
                     'href' => route('admin.settings.system-name.edit', [], false), 'button' => '設定を開く'],
+                ['title' => 'Googleアナリティクス設定', 'description' => 'お客様向け画面のアクセスを計測するGoogleアナリティクス（GA4）の測定IDを設定します。',
+                    'status' => '現在の測定ID：'.($settings?->google_analytics_id ?? '未設定（計測しません）'),
+                    'href' => route('admin.settings.google-analytics.edit', [], false), 'button' => '設定を開く'],
             ],
         ]);
     }

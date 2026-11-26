@@ -19,7 +19,7 @@ class SystemNameSettingTest extends TestCase
         $this->actingAs(User::factory()->admin()->create());
 
         $this->get(route('admin.settings.index'))->assertInertia(fn (Assert $page) => $page
-            ->has('cards', 4)
+            ->has('cards', 5)
             ->where('cards.3.title', 'システム名設定')
             ->where('cards.3.status', '現在のシステム名：EC02')
             ->where('cards.3.href', route('admin.settings.system-name.edit', [], false)));

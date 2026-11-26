@@ -12,7 +12,7 @@ use App\Http\Controllers\Admin\OrderSettingController;
 use App\Http\Controllers\Admin\PostalCodeShippingGroupController;
 use App\Http\Controllers\Admin\ProductController;
 use App\Http\Controllers\Admin\ProductGroupController;
-use App\Http\Controllers\Admin\ProductImageUploadController;
+use App\Http\Controllers\Admin\ProductImageManagementController;
 use App\Http\Controllers\Admin\PurchaseReceiptController;
 use App\Http\Controllers\Admin\SettingsController;
 use App\Http\Controllers\Admin\ShipmentController;
@@ -88,7 +88,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'can:access-admin', 
     $registerCsvImportRoutes('shipments', 'shipments', 'shipments');
     Route::resource('categories', CategoryController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('product-groups', ProductGroupController::class)->only(['index', 'create', 'store', 'show', 'edit', 'update']);
-    Route::post('product-image-uploads', [ProductImageUploadController::class, 'store'])->middleware('throttle:60,1')->name('product-image-uploads.store');
+    Route::scopeBindings()->controller(ProductImageManagementController::class)->group(function (): void {
+        Route::post('products/{product}/images', 'store')->middleware('throttle:60,1')->name('products.images.store');
+        Route::put('products/{product}/images/order', 'reorder')->name('products.images.reorder');
+        Route::post('products/{product}/images/{image}/replace', 'replace')->middleware('throttle:60,1')->name('products.images.replace');
+        Route::patch('products/{product}/images/{image}', 'update')->name('products.images.update');
+        Route::delete('products/{product}/images/{image}', 'destroy')->name('products.images.destroy');
+    });
     Route::resource('products', ProductController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('suppliers', SupplierController::class)->only(['index', 'create', 'store', 'edit', 'update']);
     Route::resource('purchase-receipts', PurchaseReceiptController::class)->only(['index', 'create', 'store', 'edit', 'update']);

@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Admin;
 
 use App\Actions\Products\AdminProductStock;
 use App\Actions\Products\ProductSchedule;
-use App\Actions\Products\SyncProductImages;
 use App\Actions\Products\ValidateProductVariant;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ProductRequest;
@@ -118,14 +117,14 @@ class ProductController extends Controller
         $data = $request->validate(['from_product_group_id' => ['nullable', 'integer', Rule::exists('product_groups', 'id')]]);
         abort_if(isset($data['from_product_group_id']) && (int) $data['from_product_group_id'] !== $product->product_group_id, 404);
 
-        return Inertia::render('Admin/Products/Form', ['scheduleValues' => ProductSchedule::formValues($product), 'returnGroup' => isset($data['from_product_group_id']) ? $this->returnGroup((int) $data['from_product_group_id']) : null, 'saveUrl' => route('admin.products.update', $product, false), 'componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates($product)]);
+        return Inertia::render('Admin/Products/Form', ['scheduleValues' => ProductSchedule::formValues($product), 'returnGroup' => isset($data['from_product_group_id']) ? $this->returnGroup((int) $data['from_product_group_id']) : null, 'saveUrl' => route('admin.products.update', $product, false), 'componentProducts' => $this->componentProducts($product), 'product' => $product->load(['images', 'categories:id,name', 'attributeValues.definition', 'group', 'bundleComponents.componentProduct.unit']), 'imagesUrl' => route('admin.products.images.store', $product, false), 'groups' => $this->groups(), 'categories' => Category::treeOptions(), 'units' => Unit::where('status', 'active')->orderBy('id')->get(['id', 'name', 'code']), 'taxRates' => $this->taxRates($product)]);
     }
 
-    public function store(ProductRequest $request, SyncProductImages $images): RedirectResponse
+    public function store(ProductRequest $request): RedirectResponse
     {
-        $product = $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $images): Product {
+        $product = DB::transaction(function () use ($request): Product {
             app(ValidateProductVariant::class)->lockGroup($request->integer('product_group_id') ?: null);
-            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
+            $product = new Product($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
             $product->fill(ProductSchedule::storageValues($request->validated()));
             $product->sku = $product->sku ?: 'P-'.Str::ulid();
             $product->created_by = $request->user()->id;
@@ -138,10 +137,9 @@ class ProductController extends Controller
             $this->syncAttributeValues($request, $product, null);
             app(ValidateProductVariant::class)->validate($product);
             $this->syncBundleComponents($request, $product);
-            $images->sync($product, $request->validated('images'));
 
             return $product;
-        }, 3));
+        }, 3);
 
         if ($request->validated('from_product_group_id')) {
             return to_route('admin.product-groups.show', $request->validated('from_product_group_id'))->with('status', '販売商品を登録しました。');
@@ -150,9 +148,9 @@ class ProductController extends Controller
         return to_route('admin.products.edit', $product)->with('status', $product->registration_status === 'confirmed' ? '販売商品を本登録しました。' : '販売商品を仮登録しました。');
     }
 
-    public function update(ProductRequest $request, Product $product, SyncProductImages $images): RedirectResponse
+    public function update(ProductRequest $request, Product $product): RedirectResponse
     {
-        $images->handle($request->validated('images'), fn () => DB::transaction(function () use ($request, $product, $images): void {
+        DB::transaction(function () use ($request, $product): void {
             $current = Product::whereKey($product->id)->lockForUpdate()->firstOrFail();
             if ($current->lock_version !== (int) $request->validated('lock_version')) {
                 throw ValidationException::withMessages(['lock_version' => '別の画面で更新されています。再読み込みして内容を確認してください。']);
@@ -174,7 +172,7 @@ class ProductController extends Controller
             app(ValidateProductVariant::class)->lockGroup($request->integer('product_group_id') ?: null, $current->product_group_id);
             $sku = $current->sku;
             $previousGroupId = $current->product_group_id;
-            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
+            $current->fill($request->safe()->except(['lock_version', 'category_ids', 'attribute_values', 'bundle_components', 'images_present', 'from_product_group_id', ...array_keys(ProductSchedule::FIELDS)]));
             $current->fill(ProductSchedule::storageValues($request->validated()));
             $current->sku = $current->sku ?: $sku;
             if ($current->registration_status === 'confirmed' && ! $current->confirmed_at) {
@@ -187,8 +185,7 @@ class ProductController extends Controller
             $this->syncAttributeValues($request, $current, $previousGroupId);
             app(ValidateProductVariant::class)->validate($current);
             $this->syncBundleComponents($request, $current);
-            $images->sync($current, $request->validated('images'));
-        }, 3));
+        }, 3);
 
         if ($request->validated('from_product_group_id')) {
             return to_route('admin.product-groups.show', $request->validated('from_product_group_id'))->with('status', '販売商品を保存しました。');

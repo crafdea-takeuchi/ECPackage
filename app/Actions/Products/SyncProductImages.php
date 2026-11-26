@@ -2,9 +2,7 @@
 
 namespace App\Actions\Products;
 
-use App\Models\Product;
 use App\Models\ProductGroup;
-use App\Models\ProductImageUpload;
 use Closure;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -22,8 +20,8 @@ class SyncProductImages
     public function __construct(private StoreProductImageFile $storeProductImageFile) {}
 
     /**
-     * Prepare files before locking the product; remove old files only after commit.
-     * 事前にアップロード済みの画像（upload_id）は、商品のトランザクション内で商品画像へ移す。
+     * 保存時に画像ファイルをまとめて受け取る画面（基本商品）用。
+     * Prepare files before locking the owner; remove old files only after commit.
      */
     public function handle(?array $images, Closure $save): mixed
     {
@@ -47,7 +45,7 @@ class SyncProductImages
     }
 
     /** Called inside the product transaction, after acquiring its row lock. */
-    public function sync(Product|ProductGroup $product, ?array $images): void
+    public function sync(ProductGroup $product, ?array $images): void
     {
         if ($images === null) {
             return;
@@ -61,9 +59,6 @@ class SyncProductImages
             }
             $image = $id ? $existing->get($id) : $product->images()->make();
             $prepared = $this->prepared[$index] ?? [];
-            if ($prepared === [] && isset($input['upload_id'])) {
-                $prepared = $this->claimUpload((int) $input['upload_id'], $index);
-            }
             if (! $id && $prepared === []) {
                 throw ValidationException::withMessages(["images.$index.file" => '画像ファイルを選択してください。']);
             }
@@ -80,24 +75,6 @@ class SyncProductImages
                 $image->delete();
             }
         }
-    }
-
-    /**
-     * アップロード済みの画像を商品画像用に取り出し、アップロードのレコードを削除する。
-     * ファイルはそのまま商品画像が引き継ぐ。トランザクションが巻き戻ればレコードも戻るので、再保存できる。
-     *
-     * @return array{disk: string, path: string, thumbnail_path: string, mime_type: string, size_bytes: int, width: int, height: int}
-     */
-    private function claimUpload(int $uploadId, int $index): array
-    {
-        $upload = ProductImageUpload::whereKey($uploadId)->lockForUpdate()->first();
-        if ($upload === null) {
-            throw ValidationException::withMessages(["images.$index.upload_id" => '画像をアップロードし直してください。']);
-        }
-        $attributes = $upload->imageAttributes();
-        $upload->delete();
-
-        return $attributes;
     }
 
     private function prepare(UploadedFile $file, int $index): array

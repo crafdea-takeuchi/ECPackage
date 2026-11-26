@@ -34,10 +34,11 @@ class ProductGroupImageTest extends TestCase
         return ProductGroup::firstOrFail();
     }
 
-    #[TestWith(['jpg'])]
-    #[TestWith(['png'])]
-    #[TestWith(['webp'])]
-    public function test_group_image_uses_existing_webp_pipeline(string $extension): void
+    #[TestWith(['jpg', 'image/jpeg'])]
+    #[TestWith(['png', 'image/png'])]
+    #[TestWith(['webp', 'image/webp'])]
+    #[TestWith(['gif', 'image/gif'])]
+    public function test_group_image_is_saved_in_its_original_format_and_size(string $extension, string $mimeType): void
     {
         Storage::fake('product_images');
         $this->actingAs(User::factory()->admin()->create())->post(route('admin.product-groups.store'), $this->input(null, [
@@ -47,10 +48,10 @@ class ProductGroupImageTest extends TestCase
         $image = $group->images()->firstOrFail();
         $this->assertNull($image->product_id);
         $this->assertSame($group->id, $image->product_group_id);
-        $this->assertSame('image/webp', $image->mime_type);
-        $this->assertSame([1600, 800], [$image->width, $image->height]);
-        $thumb = getimagesizefromstring(Storage::disk('product_images')->get($image->thumbnail_path));
-        $this->assertSame([400, 200], [$thumb[0], $thumb[1]]);
+        $this->assertSame($mimeType, $image->mime_type);
+        $this->assertSame([2400, 1200], [$image->width, $image->height]);
+        $stored = getimagesizefromstring(Storage::disk('product_images')->get($image->thumbnail_path));
+        $this->assertSame([2400, 1200, $mimeType], [$stored[0], $stored[1], $stored['mime']]);
         $this->get(route('admin.product-groups.index'))->assertInertia(fn (Assert $page) => $page->where('groups.0.images.0.id', $image->id));
         $this->get(route('admin.product-groups.show', $group))->assertInertia(fn (Assert $page) => $page->where('productGroup.images.0.id', $image->id));
     }
@@ -86,7 +87,7 @@ class ProductGroupImageTest extends TestCase
         ]))->assertSessionHasErrors('lock_version');
         $this->assertSame($image->path, $image->fresh()->path);
         Storage::disk('product_images')->assertExists([$image->path, $image->thumbnail_path]);
-        $this->assertCount(2, Storage::disk('product_images')->allFiles());
+        $this->assertCount(1, Storage::disk('product_images')->allFiles(), '画像1枚につき1ファイル');
     }
 
     public function test_invalid_images_multiple_images_and_cross_owner_ids_are_rejected(): void
